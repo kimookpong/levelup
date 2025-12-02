@@ -4,7 +4,7 @@ import GameCard from '@/components/GameCard';
 import { FaBolt, FaShieldAlt, FaHeadset, FaNewspaper, FaStar, FaCreditCard } from 'react-icons/fa';
 import Image from 'next/image';
 
-import { createServerClient } from '@/lib/supabaseClient';
+import { createServerClient } from '@/lib/supabase/server';
 
 const NEWS = [
     {
