@@ -4,7 +4,7 @@ import GameCard from '@/components/GameCard';
 import { FaBolt, FaShieldAlt, FaHeadset, FaNewspaper, FaStar, FaCreditCard } from 'react-icons/fa';
 import Image from 'next/image';
 
-import { supabase } from '@/lib/supabaseClient';
+import { createServerClient } from '@/lib/supabaseClient';
 
 const NEWS = [
     {
@@ -62,6 +62,7 @@ const PAYMENTS = [
 ];
 
 export default async function Home() {
+    const supabase = await createServerClient();
     const { data: games } = await supabase.from('games').select('*').eq('active', true);
 
     return (
