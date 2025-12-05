@@ -80,14 +80,6 @@ export default function Navbar() {
                             <FaSearch className="absolute left-3.5 top-3 text-gray-500 text-sm" />
                         </div>
 
-                        {/* Currency Selector */}
-                        <button className="flex items-center gap-2 bg-[#0a0b0e] border border-white/10 rounded-lg px-3 py-2.5 hover:border-white/20 transition-colors">
-                            <div className="w-5 h-3.5 bg-red-800 relative overflow-hidden rounded-[2px]">
-                                <div className="absolute inset-x-0 top-[33%] bottom-[33%] bg-blue-900" />
-                            </div>
-                            <span className="text-sm font-bold text-white">THB</span>
-                        </button>
-
                         {/* User Profile */}
                         {user ? (
                             <div className="relative pl-2">
