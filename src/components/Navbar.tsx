@@ -4,18 +4,32 @@ import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { User } from '@supabase/supabase-js';
-import { FaGamepad, FaUser, FaSignOutAlt, FaBars, FaTimes, FaSearch, FaChevronDown } from 'react-icons/fa';
+import { FaGamepad, FaUser, FaSignOutAlt, FaBars, FaTimes, FaSearch, FaChevronDown, FaUserShield } from 'react-icons/fa';
 import Image from 'next/image';
 
 export default function Navbar() {
     const [user, setUser] = useState<User | null>(null);
+    const [isAdmin, setIsAdmin] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
 
     useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
             setUser(session?.user ?? null);
+
+            if (session?.user) {
+                const { data } = await supabase
+                    .from('users')
+                    .select('role')
+                    .eq('id', session.user.id)
+                    .single();
+                setIsAdmin(data?.role === 'admin');
+
+                console.log(data, session.user);
+            } else {
+                setIsAdmin(false);
+            }
         });
 
         const handleScroll = () => {
@@ -42,10 +56,16 @@ export default function Navbar() {
                     {/* Left Side: Logo & Menu */}
                     <div className="flex items-center gap-12">
                         {/* Logo */}
-                        <Link href="/" className="flex items-center gap-3 group">
-                            <div className="relative w-10 h-10">
+                        <Link href="/" className="flex items-center group">
+                            <div className="relative w-20 h-20">
 
-                                <FaGamepad className="text-primary text-4xl relative z-10 drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]" />
+                                <Image
+                                    src="/logo.png"
+                                    alt="Level Up Logo"
+                                    width={80}
+                                    height={80}
+                                    className="relative z-10 drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]"
+                                />
                             </div>
                             <span className="text-2xl font-bold text-white tracking-wide">LEVEL<span className="text-primary">UP</span></span>
                         </Link>
@@ -102,6 +122,16 @@ export default function Navbar() {
                                 {isDropdownOpen && (
                                     <div className="absolute right-0 mt-2 w-48 bg-[#0f1014] border border-white/10 rounded-xl shadow-xl overflow-hidden z-50">
                                         <div className="py-1">
+                                            {isAdmin && (
+                                                <Link
+                                                    href="/admin"
+                                                    className="flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
+                                                    onClick={() => setIsDropdownOpen(false)}
+                                                >
+                                                    <FaUserShield className="text-primary" />
+                                                    แอดมิน
+                                                </Link>
+                                            )}
                                             <Link
                                                 href="/profile"
                                                 className="flex items-center gap-3 px-4 py-3 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"

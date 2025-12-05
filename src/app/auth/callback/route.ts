@@ -29,8 +29,20 @@ export async function GET(request: Request) {
             }
         );
 
-        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
         if (!error) {
+            // Sync user to public table
+            const user = data.user;
+            if (user) {
+                await supabase.from('users').upsert({
+                    id: user.id,
+                    email: user.email,
+                    full_name: user.user_metadata.full_name,
+                    avatar_url: user.user_metadata.avatar_url,
+                    // role: 'user' // Default is 'user', let database handle it or existing value
+                });
+            }
+
             return NextResponse.redirect(`${origin}${next}`);
         }
     }

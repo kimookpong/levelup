@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { FaFacebook, FaTwitter, FaInstagram, FaDiscord, FaGamepad } from 'react-icons/fa';
 
 export default function Footer() {
@@ -9,8 +10,14 @@ export default function Footer() {
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
                     <div className="col-span-1 md:col-span-2">
-                        <div className="flex items-center gap-2 text-2xl font-display font-bold text-white mb-6">
-                            <FaGamepad className="text-primary" />
+                        <div className="flex items-center text-2xl font-display font-bold text-white mb-6">
+                            <Image
+                                src="/logo.png"
+                                alt="Level Up Logo"
+                                width={60}
+                                height={60}
+                                className="relative z-10 drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]"
+                            />
                             <span className="tracking-wider">LEVEL<span className="text-primary">UP</span></span>
                         </div>
                         <p className="text-gray-400 max-w-sm leading-relaxed">

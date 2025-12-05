@@ -9,6 +9,9 @@ const outfit = Outfit({ subsets: ["latin"], variable: "--font-outfit" });
 export const metadata: Metadata = {
   title: "LevelUp - Game Top-up Center",
   description: "Instant game top-ups for ROV, PUBG, and more.",
+  icons: {
+    icon: '/logo.png',
+  },
 };
 
 export default function RootLayout({
@@ -18,6 +21,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+
       <body className={`${inter.variable} ${outfit.variable} font-sans antialiased bg-background text-foreground`}>
         {children}
         <ChatWidget />

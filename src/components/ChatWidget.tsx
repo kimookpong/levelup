@@ -2,22 +2,22 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { FaComments, FaPaperPlane, FaTimes } from 'react-icons/fa';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabase/client';
 import Link from 'next/link';
 
 interface ChatMessage {
-    id: number;
+    id: string;
     text: string;
     sender: 'user' | 'admin';
+    created_at: string;
 }
 
 export default function ChatWidget() {
     const [isOpen, setIsOpen] = useState(false);
-    const [messages, setMessages] = useState<ChatMessage[]>([
-        { id: 1, text: 'Hello! How can we help you today?', sender: 'admin' }
-    ]);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
     const [user, setUser] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
@@ -27,8 +27,9 @@ export default function ChatWidget() {
     useEffect(() => {
         // Check auth state
         const checkAuth = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            setUser(user);
+            const { data: { session } } = await supabase.auth.getSession();
+            setUser(session?.user ?? null);
+            setLoading(false);
         };
         checkAuth();
 
@@ -36,19 +37,37 @@ export default function ChatWidget() {
             setUser(session?.user ?? null);
         });
 
+        return () => {
+            subscription.unsubscribe();
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!user) return;
+
         // Load initial messages
         const fetchMessages = async () => {
             const { data } = await supabase
                 .from('chat_messages')
                 .select('*')
+                .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
                 .order('created_at', { ascending: true });
 
             if (data) {
                 setMessages(data.map((msg: any) => ({
                     id: msg.id,
                     text: msg.message,
-                    sender: msg.sender_id ? 'user' : 'admin' // Simplified logic
+                    sender: msg.sender_id === user.id ? 'user' : 'admin',
+                    created_at: msg.created_at
                 })));
+            } else {
+                // Add welcome message if no messages
+                setMessages([{
+                    id: 'welcome',
+                    text: 'สวัสดีครับ มีอะไรให้เราช่วยไหมครับ?',
+                    sender: 'admin',
+                    created_at: new Date().toISOString()
+                }]);
             }
         };
 
@@ -57,42 +76,62 @@ export default function ChatWidget() {
         // Subscribe to new messages
         const channel = supabase
             .channel('public:chat_messages')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload: any) => {
-                const newMessage = payload.new;
-                setMessages(prev => [...prev, {
-                    id: newMessage.id,
-                    text: newMessage.message,
-                    sender: newMessage.sender_id ? 'user' : 'admin'
-                }]);
-            })
+            .on('postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'chat_messages',
+                    filter: `receiver_id=eq.${user.id}`
+                },
+                (payload: any) => {
+                    const newMessage = payload.new;
+                    setMessages(prev => [...prev, {
+                        id: newMessage.id,
+                        text: newMessage.message,
+                        sender: 'admin',
+                        created_at: newMessage.created_at
+                    }]);
+                }
+            )
             .subscribe();
 
         return () => {
-            subscription.unsubscribe();
             supabase.removeChannel(channel);
         };
-    }, []); // Empty dependency array for initial load and subscription setup
+    }, [user]);
 
-    // Keep this useEffect to scroll to bottom whenever messages change
     useEffect(() => {
         scrollToBottom();
-    }, [messages]);
+    }, [messages, isOpen]);
 
     const handleSend = async () => {
-        if (!input.trim()) return;
+        if (!input.trim() || !user) return;
+
+        const messageText = input.trim();
+        const tempId = Date.now().toString();
 
         // Optimistic update
-        const tempId = Date.now();
-        setMessages(prev => [...prev, { id: tempId, text: input, sender: 'user' }]);
+        setMessages(prev => [...prev, {
+            id: tempId,
+            text: messageText,
+            sender: 'user',
+            created_at: new Date().toISOString()
+        }]);
         setInput('');
 
         const { error } = await supabase
             .from('chat_messages')
-            .insert({ message: input, sender_id: (await supabase.auth.getUser()).data.user?.id });
+            .insert({
+                message: messageText,
+                sender_id: user.id,
+                // receiver_id is NULL for admin/support
+            });
 
         if (error) {
             console.error('Error sending message:', error);
-            // Rollback or show error
+            // Remove the optimistic message if failed
+            setMessages(prev => prev.filter(msg => msg.id !== tempId));
+            alert('ส่งข้อความไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
         }
     };
 
@@ -108,7 +147,7 @@ export default function ChatWidget() {
 
             {/* Chat Window */}
             {isOpen && (
-                <div className="fixed bottom-6 right-6 z-50 w-80 md:w-96 h-[500px] bg-card-bg border border-white/10 rounded-2xl shadow-2xl flex flex-col animate-fade-in-up">
+                <div className="fixed bottom-6 right-6 z-50 w-80 md:w-96 h-[500px] bg-[#1a1b26] border border-white/10 rounded-2xl shadow-2xl flex flex-col animate-fade-in-up">
                     {/* Header */}
                     <div className="bg-primary p-4 rounded-t-2xl flex items-center justify-between">
                         <h3 className="text-white font-bold flex items-center gap-2">
@@ -121,34 +160,53 @@ export default function ChatWidget() {
 
                     {/* Messages */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                        {messages.map((msg) => (
-                            <div
-                                key={msg.id}
-                                className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-                            >
-                                <div
-                                    className={`max-w-[80%] p-3 rounded-xl text-sm ${msg.sender === 'user'
-                                        ? 'bg-primary text-white rounded-br-none'
-                                        : 'bg-white/10 text-gray-200 rounded-bl-none'
-                                        }`}
-                                >
-                                    {msg.text}
-                                </div>
+                        {loading ? (
+                            <div className="flex justify-center items-center h-full text-gray-400">
+                                Loading...
                             </div>
-                        ))}
-                        <div ref={messagesEndRef} />
+                        ) : !user ? (
+                            <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
+                                <FaComments className="text-4xl text-gray-600" />
+                                <p className="text-gray-400">กรุณาเข้าสู่ระบบเพื่อแชทกับทีมงาน</p>
+                                <Link
+                                    href="/login"
+                                    className="bg-primary hover:bg-primary/90 text-white px-6 py-2 rounded-full font-bold transition-all"
+                                >
+                                    เข้าสู่ระบบ
+                                </Link>
+                            </div>
+                        ) : (
+                            <>
+                                {messages.map((msg) => (
+                                    <div
+                                        key={msg.id}
+                                        className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                                    >
+                                        <div
+                                            className={`max-w-[80%] p-3 rounded-xl text-sm ${msg.sender === 'user'
+                                                ? 'bg-primary text-white rounded-br-none'
+                                                : 'bg-white/10 text-gray-200 rounded-bl-none'
+                                                }`}
+                                        >
+                                            {msg.text}
+                                        </div>
+                                    </div>
+                                ))}
+                                <div ref={messagesEndRef} />
+                            </>
+                        )}
                     </div>
 
                     {/* Input */}
-                    <div className="p-4 border-t border-white/10">
-                        {user ? (
+                    {user && (
+                        <div className="p-4 border-t border-white/10">
                             <div className="flex gap-2">
                                 <input
                                     type="text"
                                     value={input}
                                     onChange={(e) => setInput(e.target.value)}
                                     onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                                    placeholder="Type a message..."
+                                    placeholder="พิมพ์ข้อความ..."
                                     className="flex-1 bg-black/50 border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
                                 />
                                 <button
@@ -158,18 +216,8 @@ export default function ChatWidget() {
                                     <FaPaperPlane />
                                 </button>
                             </div>
-                        ) : (
-                            <div className="text-center py-2">
-                                <p className="text-gray-400 text-sm mb-2">กรุณาเข้าสู่ระบบเพื่อติดต่อ Admin</p>
-                                <Link
-                                    href="/login"
-                                    className="inline-block bg-primary/20 text-primary border border-primary/50 px-4 py-1.5 rounded-lg text-sm font-bold hover:bg-primary hover:text-white transition-all"
-                                >
-                                    เข้าสู่ระบบ
-                                </Link>
-                            </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             )}
         </>

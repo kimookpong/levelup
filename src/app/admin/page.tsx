@@ -1,71 +1,82 @@
-'use client';
+import { createServerClient } from '@/lib/supabase/server';
+import { FaUsers, FaGamepad, FaMoneyBillWave, FaChartLine } from 'react-icons/fa';
 
-import Navbar from '@/components/Navbar';
-import AdminSidebar from '@/components/AdminSidebar';
-import { useState } from 'react';
-import { FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
+export default async function AdminDashboard() {
+    const supabase = await createServerClient();
 
-// Mock Data
-const GAMES = [
-    { id: '1', name: 'ROV', active: true },
-    { id: '2', name: 'PUBG Mobile', active: true },
-    { id: '3', name: 'Free Fire', active: false },
-];
+    // Fetch Stats
+    const { count: usersCount } = await supabase.from('users').select('*', { count: 'exact', head: true });
+    const { count: gamesCount } = await supabase.from('games').select('*', { count: 'exact', head: true });
+    const { data: transactions } = await supabase.from('transactions').select('amount').eq('status', 'success');
 
-export default function AdminDashboard() {
+    const totalSales = transactions?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+
+    const stats = [
+        {
+            title: 'ผู้ใช้งานทั้งหมด',
+            value: usersCount || 0,
+            icon: FaUsers,
+            color: 'text-blue-400',
+            bg: 'bg-blue-400/10',
+            border: 'border-blue-400/20'
+        },
+        {
+            title: 'ยอดขายรวม',
+            value: `฿${totalSales.toLocaleString()}`,
+            icon: FaMoneyBillWave,
+            color: 'text-green-400',
+            bg: 'bg-green-400/10',
+            border: 'border-green-400/20'
+        },
+        {
+            title: 'เกมทั้งหมด',
+            value: gamesCount || 0,
+            icon: FaGamepad,
+            color: 'text-purple-400',
+            bg: 'bg-purple-400/10',
+            border: 'border-purple-400/20'
+        },
+        {
+            title: 'รายการวันนี้',
+            value: '0', // Placeholder for daily stats
+            icon: FaChartLine,
+            color: 'text-orange-400',
+            bg: 'bg-orange-400/10',
+            border: 'border-orange-400/20'
+        }
+    ];
+
     return (
-        <div className="min-h-screen bg-black text-white selection:bg-primary selection:text-white">
-            <Navbar />
-            <AdminSidebar />
+        <div>
+            <div className="mb-8 animate-fade-in">
+                <h1 className="text-4xl font-display font-bold text-white mb-2">Dashboard</h1>
+                <p className="text-gray-400">ภาพรวมของระบบ</p>
+            </div>
 
-            <main className="ml-64 pt-28 px-8 pb-12">
-                <div className="flex items-center justify-between mb-8 animate-fade-in">
-                    <div>
-                        <h1 className="text-4xl font-display font-bold text-white mb-2">จัดการเกม</h1>
-                        <p className="text-gray-400">เพิ่ม แก้ไข หรือลบเกมออกจากระบบ</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {stats.map((stat, index) => (
+                    <div key={index} className={`glass p-6 rounded-2xl border ${stat.border} animate-fade-in-up`} style={{ animationDelay: `${index * 100}ms` }}>
+                        <div className="flex items-center justify-between mb-4">
+                            <div className={`w-12 h-12 rounded-xl ${stat.bg} flex items-center justify-center`}>
+                                <stat.icon className={`text-2xl ${stat.color}`} />
+                            </div>
+                            <span className={`text-xs font-bold px-2 py-1 rounded-full ${stat.bg} ${stat.color}`}>
+                                +0%
+                            </span>
+                        </div>
+                        <h3 className="text-gray-400 text-sm font-medium mb-1">{stat.title}</h3>
+                        <p className="text-3xl font-bold text-white">{stat.value}</p>
                     </div>
-                    <button className="flex items-center gap-2 bg-primary hover:bg-red-600 text-white px-6 py-3 rounded-xl font-bold transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(255,0,85,0.4)]">
-                        <FaPlus />
-                        เพิ่มเกม
-                    </button>
-                </div>
+                ))}
+            </div>
 
-                <div className="glass rounded-3xl overflow-hidden animate-fade-in-up shadow-2xl">
-                    <table className="w-full text-left">
-                        <thead className="bg-white/5 border-b border-white/10">
-                            <tr>
-                                <th className="p-6 font-bold text-gray-300 uppercase tracking-wider text-sm">ชื่อเกม</th>
-                                <th className="p-6 font-bold text-gray-300 uppercase tracking-wider text-sm">สถานะ</th>
-                                <th className="p-6 font-bold text-gray-300 uppercase tracking-wider text-sm text-right">จัดการ</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-white/5">
-                            {GAMES.map((game) => (
-                                <tr key={game.id} className="hover:bg-white/5 transition-colors group">
-                                    <td className="p-6 font-medium text-lg">{game.name}</td>
-                                    <td className="p-6">
-                                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${game.active
-                                            ? 'bg-green-500/10 text-green-400 border-green-500/20'
-                                            : 'bg-red-500/10 text-red-400 border-red-500/20'
-                                            }`}>
-                                            <span className={`w-1.5 h-1.5 rounded-full ${game.active ? 'bg-green-400' : 'bg-red-400'}`}></span>
-                                            {game.active ? 'ใช้งาน' : 'ไม่ใช้งาน'}
-                                        </span>
-                                    </td>
-                                    <td className="p-6 text-right space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Edit">
-                                            <FaEdit />
-                                        </button>
-                                        <button className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors" title="Delete">
-                                            <FaTrash />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+            {/* Recent Activity Placeholder */}
+            <div className="glass rounded-3xl p-8 border border-white/10">
+                <h2 className="text-xl font-bold text-white mb-6">กิจกรรมล่าสุด</h2>
+                <div className="text-center py-12 text-gray-500">
+                    ยังไม่มีข้อมูลกิจกรรมล่าสุด
                 </div>
-            </main>
+            </div>
         </div>
     );
 }

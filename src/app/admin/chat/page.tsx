@@ -1,274 +1,261 @@
 'use client';
 
-import Navbar from '@/components/Navbar';
-import AdminSidebar from '@/components/AdminSidebar';
 import { useState, useEffect, useRef } from 'react';
-import { FaUser, FaPaperPlane } from 'react-icons/fa';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabase/client';
+import { FaPaperPlane, FaUser, FaSearch } from 'react-icons/fa';
 
-interface Message {
-    id: number | string; // Supabase IDs are numbers, but temp IDs can be numbers too
+interface ChatMessage {
+    id: string;
     text: string;
-    sender: 'user' | 'admin';
+    sender_id: string;
+    receiver_id: string;
     created_at: string;
+    sender_role?: 'user' | 'admin';
 }
 
-interface Conversation {
-    id: string; // User ID
-    user: string; // Email or a derived name
-    lastMessage: string;
-    time: string;
-    unread: number;
+interface UserProfile {
+    id: string;
+    full_name: string;
+    email: string;
+    avatar_url: string;
 }
 
 export default function AdminChat() {
-    const [conversations, setConversations] = useState<Conversation[]>([]);
-    const [selectedChat, setSelectedChat] = useState<string | null>(null);
-    const [messages, setMessages] = useState<Message[]>([]);
+    const [conversations, setConversations] = useState<UserProfile[]>([]);
+    const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+    const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
+    const [adminId, setAdminId] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
-    // Scroll to bottom of messages
+    // Get Admin ID
     useEffect(() => {
-        if (messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-        }
-    }, [messages]);
-
-    // Fetch conversations (users who have chatted)
-    useEffect(() => {
-        const fetchConversations = async () => {
-            // This is a simplified query. In a real app, you'd use a view or a more complex query
-            // to get the latest message for each unique sender and their unread status.
-            const { data, error } = await supabase
-                .from('chat_messages')
-                .select('sender_id, message, created_at, is_read')
-                .order('created_at', { ascending: false });
-
-            if (error) {
-                console.error('Error fetching conversations:', error);
-                return;
-            }
-
-            if (data) {
-                // Group by sender_id to simulate conversations list
-                const uniqueSenders = new Map<string, Conversation>();
-                data.forEach((msg: any) => {
-                    if (msg.sender_id && !uniqueSenders.has(msg.sender_id)) {
-                        uniqueSenders.set(msg.sender_id, {
-                            id: msg.sender_id,
-                            user: 'User ' + msg.sender_id.slice(0, 4), // Mock email/name
-                            lastMessage: msg.message,
-                            time: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                            unread: msg.is_read ? 0 : 1 // This logic needs refinement for actual unread counts
-                        });
-                    }
-                });
-                setConversations(Array.from(uniqueSenders.values()));
-            }
+        const getAdmin = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            setAdminId(user?.id || null);
         };
-
-        fetchConversations();
-
-        // Optional: Subscribe to new messages to update conversation list in real-time
-        const channel = supabase
-            .channel('conversations_list')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages' }, (payload: any) => {
-                // Re-fetch conversations or update the list more intelligently
-                fetchConversations();
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
+        getAdmin();
     }, []);
 
-    // Fetch messages for selected chat and subscribe to real-time updates
+    // Fetch unique users who have chatted
     useEffect(() => {
-        if (!selectedChat) {
-            setMessages([]); // Clear messages if no chat is selected
-            return;
-        }
-
-        const fetchMessages = async () => {
-            const { data, error } = await supabase
+        const fetchConversations = async () => {
+            // This is a simplified approach. Ideally, you'd have a 'conversations' table or a distinct query.
+            // For now, we'll fetch all messages and extract unique users.
+            const { data } = await supabase
                 .from('chat_messages')
-                .select('*')
-                .or(`sender_id.eq.${selectedChat},receiver_id.eq.${selectedChat}`)
-                .order('created_at', { ascending: true });
-
-            if (error) {
-                console.error('Error fetching messages:', error);
-                return;
-            }
+                .select('sender_id, receiver_id')
+                .order('created_at', { ascending: false });
 
             if (data) {
-                const adminId = (await supabase.auth.getUser()).data.user?.id;
+                const userIds = new Set<string>();
+                data.forEach(msg => {
+                    if (msg.sender_id && msg.sender_id !== adminId) userIds.add(msg.sender_id);
+                    if (msg.receiver_id && msg.receiver_id !== adminId) userIds.add(msg.receiver_id);
+                });
+
+                if (userIds.size > 0) {
+                    const { data: users } = await supabase
+                        .from('users')
+                        .select('*')
+                        .in('id', Array.from(userIds));
+
+                    if (users) setConversations(users);
+                }
+            }
+        };
+
+        if (adminId) fetchConversations();
+    }, [adminId]);
+
+    // Fetch messages for selected user
+    useEffect(() => {
+        if (!selectedUser || !adminId) return;
+
+        const fetchMessages = async () => {
+            const { data } = await supabase
+                .from('chat_messages')
+                .select('*')
+                .or(`sender_id.eq.${selectedUser.id},receiver_id.eq.${selectedUser.id}`)
+                .order('created_at', { ascending: true });
+
+            if (data) {
                 setMessages(data.map((msg: any) => ({
                     id: msg.id,
                     text: msg.message,
-                    sender: msg.sender_id === selectedChat ? 'user' : 'admin', // Assuming admin is the current user
-                    created_at: msg.created_at
+                    sender_id: msg.sender_id,
+                    receiver_id: msg.receiver_id,
+                    created_at: msg.created_at,
+                    sender_role: msg.sender_id === adminId ? 'admin' : 'user'
                 })));
             }
         };
 
         fetchMessages();
 
-        // Subscribe to new messages for this specific chat
         const channel = supabase
-            .channel(`chat:${selectedChat}`)
-            .on('postgres_changes', {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'chat_messages',
-                filter: `sender_id=eq.${selectedChat}` // Only listen for messages from the selected user
-            }, (payload: any) => {
-                const newMsg = payload.new;
-                setMessages(prev => [...prev, {
-                    id: newMsg.id,
-                    text: newMsg.message,
-                    sender: 'user', // New message from the user
-                    created_at: newMsg.created_at
-                }]);
-            })
+            .channel(`chat:${selectedUser.id}`)
+            .on('postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'chat_messages',
+                    filter: `sender_id=eq.${selectedUser.id}`
+                },
+                (payload: any) => {
+                    const newMessage = payload.new;
+                    setMessages(prev => [...prev, {
+                        id: newMessage.id,
+                        text: newMessage.message,
+                        sender_id: newMessage.sender_id,
+                        receiver_id: newMessage.receiver_id,
+                        created_at: newMessage.created_at,
+                        sender_role: 'user'
+                    }]);
+                }
+            )
             .subscribe();
 
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [selectedChat]);
+    }, [selectedUser, adminId]);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
 
     const handleSend = async () => {
-        if (!input.trim() || !selectedChat) return;
+        if (!input.trim() || !selectedUser || !adminId) return;
 
-        const adminUser = await supabase.auth.getUser();
-        const adminId = adminUser.data.user?.id;
+        const messageText = input.trim();
+        const tempId = Date.now().toString();
 
-        if (!adminId) {
-            console.error('Admin user not logged in.');
-            return;
-        }
-
-        const tempId = Date.now(); // Temporary ID for optimistic UI update
         setMessages(prev => [...prev, {
             id: tempId,
-            text: input,
-            sender: 'admin',
-            created_at: new Date().toISOString()
+            text: messageText,
+            sender_id: adminId,
+            receiver_id: selectedUser.id,
+            created_at: new Date().toISOString(),
+            sender_role: 'admin'
         }]);
         setInput('');
 
-        const { error } = await supabase.from('chat_messages').insert({
-            message: input,
-            receiver_id: selectedChat,
-            sender_id: adminId, // Admin ID
-            is_read: true // Admin messages are considered read by admin
+        await supabase.from('chat_messages').insert({
+            message: messageText,
+            sender_id: adminId,
+            receiver_id: selectedUser.id
         });
-
-        if (error) {
-            console.error('Error sending message:', error);
-            // Optionally, revert the optimistic update or show an error
-            setMessages(prev => prev.filter(msg => msg.id !== tempId));
-        }
     };
 
     return (
-        <div className="min-h-screen bg-black text-white">
-            <Navbar />
-            <AdminSidebar />
-
-            <main className="ml-64 pt-24 px-8 h-screen pb-8 flex flex-col">
-                <h1 className="text-3xl font-bold mb-8">แชทช่วยเหลือ</h1>
-
-                <div className="flex-1 bg-card-bg border border-white/10 rounded-2xl overflow-hidden flex">
-                    {/* Chat List */}
-                    <div className="w-1/3 border-r border-white/10 flex flex-col">
-                        <div className="p-4 border-b border-white/10">
-                            <input
-                                type="text"
-                                placeholder="ค้นหาผู้ใช้..."
-                                className="w-full bg-black/50 border border-white/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary"
-                            />
-                        </div>
-                        <div className="flex-1 overflow-y-auto">
-                            {conversations.map((chat) => (
-                                <div
-                                    key={chat.id}
-                                    onClick={() => setSelectedChat(chat.id)}
-                                    className={`p-4 border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors ${selectedChat === chat.id ? 'bg-white/5 border-l-4 border-l-primary' : ''}`}
-                                >
-                                    <div className="flex justify-between items-start mb-1">
-                                        <span className="font-bold text-white">{chat.user}</span>
-                                        <span className="text-xs text-gray-500">{chat.time}</span>
-                                    </div>
-                                    <p className="text-sm text-gray-400 truncate">{chat.lastMessage}</p>
-                                    {chat.unread > 0 && (
-                                        <span className="inline-block bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full mt-2">
-                                            {chat.unread}
-                                        </span>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Chat Area */}
-                    <div className="flex-1 flex flex-col bg-black/20">
-                        {selectedChat ? (
-                            <>
-                                {/* Header */}
-                                <div className="p-4 border-b border-white/10 flex items-center gap-3 bg-card-bg">
-                                    <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                                        <FaUser />
-                                    </div>
-                                    <div>
-                                        <h3 className="font-bold">User {selectedChat.slice(0, 8)}</h3>
-                                        <span className="text-xs text-green-500">ออนไลน์</span>
-                                    </div>
-                                </div>
-
-                                {/* Messages */}
-                                <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                                    {messages.map((msg) => (
-                                        <div key={msg.id} className={`flex ${msg.sender === 'admin' ? 'justify-end' : 'justify-start'}`}>
-                                            <div className={`${msg.sender === 'admin' ? 'bg-primary text-white rounded-br-none' : 'bg-white/10 text-gray-200 rounded-bl-none'} p-3 rounded-xl max-w-[70%]`}>
-                                                {msg.text}
-                                            </div>
-                                        </div>
-                                    ))}
-                                    <div ref={messagesEndRef} />
-                                </div>
-
-                                {/* Input */}
-                                <div className="p-4 bg-card-bg border-t border-white/10">
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            value={input}
-                                            onChange={(e) => setInput(e.target.value)}
-                                            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-                                            placeholder="พิมพ์ข้อความ..."
-                                            className="flex-1 bg-black/50 border border-white/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary"
-                                        />
-                                        <button
-                                            onClick={handleSend}
-                                            className="bg-primary hover:bg-red-600 text-white px-6 rounded-lg transition-colors font-bold flex items-center gap-2"
-                                        >
-                                            <FaPaperPlane /> ส่ง
-                                        </button>
-                                    </div>
-                                </div>
-                            </>
-                        ) : (
-                            <div className="flex-1 flex items-center justify-center text-gray-500">
-                                เลือกการสนทนาเพื่อเริ่มแชท
-                            </div>
-                        )}
+        <div className="h-[calc(100vh-140px)] flex gap-6 animate-fade-in">
+            {/* Sidebar List */}
+            <div className="w-80 glass rounded-3xl overflow-hidden flex flex-col border border-white/10">
+                <div className="p-4 border-b border-white/10">
+                    <h2 className="text-xl font-bold text-white mb-4">แชทลูกค้า</h2>
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="ค้นหา..."
+                            className="w-full bg-white/5 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-primary/50"
+                        />
+                        <FaSearch className="absolute left-3.5 top-2.5 text-gray-500 text-sm" />
                     </div>
                 </div>
-            </main>
+                <div className="flex-1 overflow-y-auto">
+                    {conversations.map(user => (
+                        <button
+                            key={user.id}
+                            onClick={() => setSelectedUser(user)}
+                            className={`w-full p-4 flex items-center gap-3 hover:bg-white/5 transition-colors border-b border-white/5 ${selectedUser?.id === user.id ? 'bg-primary/10 border-primary/20' : ''}`}
+                        >
+                            <div className="w-10 h-10 rounded-full bg-gray-800 overflow-hidden flex-shrink-0">
+                                {user.avatar_url ? (
+                                    <img src={user.avatar_url} alt={user.full_name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                        <FaUser />
+                                    </div>
+                                )}
+                            </div>
+                            <div className="text-left overflow-hidden">
+                                <h3 className="font-bold text-white truncate">{user.full_name || 'User'}</h3>
+                                <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                            </div>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Chat Area */}
+            <div className="flex-1 glass rounded-3xl overflow-hidden flex flex-col border border-white/10">
+                {selectedUser ? (
+                    <>
+                        {/* Header */}
+                        <div className="p-4 border-b border-white/10 bg-white/5 flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-gray-800 overflow-hidden">
+                                {selectedUser.avatar_url ? (
+                                    <img src={selectedUser.avatar_url} alt={selectedUser.full_name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                        <FaUser />
+                                    </div>
+                                )}
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-white">{selectedUser.full_name || 'User'}</h3>
+                                <p className="text-xs text-gray-400">{selectedUser.email}</p>
+                            </div>
+                        </div>
+
+                        {/* Messages */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                            {messages.map((msg) => (
+                                <div
+                                    key={msg.id}
+                                    className={`flex ${msg.sender_role === 'admin' ? 'justify-end' : 'justify-start'}`}
+                                >
+                                    <div
+                                        className={`max-w-[70%] p-3 rounded-2xl text-sm ${msg.sender_role === 'admin'
+                                            ? 'bg-primary text-white rounded-br-none'
+                                            : 'bg-white/10 text-gray-200 rounded-bl-none'
+                                            }`}
+                                    >
+                                        {msg.text}
+                                    </div>
+                                </div>
+                            ))}
+                            <div ref={messagesEndRef} />
+                        </div>
+
+                        {/* Input */}
+                        <div className="p-4 border-t border-white/10 bg-white/5">
+                            <div className="flex gap-3">
+                                <input
+                                    type="text"
+                                    value={input}
+                                    onChange={(e) => setInput(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+                                    placeholder="พิมพ์ข้อความ..."
+                                    className="flex-1 bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary/50"
+                                />
+                                <button
+                                    onClick={handleSend}
+                                    className="bg-primary hover:bg-red-600 text-white p-3 rounded-xl transition-colors"
+                                >
+                                    <FaPaperPlane />
+                                </button>
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
+                        <FaPaperPlane className="text-4xl mb-4 opacity-20" />
+                        <p>เลือกแชทเพื่อเริ่มสนทนา</p>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
