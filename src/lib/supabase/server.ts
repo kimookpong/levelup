@@ -3,8 +3,8 @@ import { cookies } from 'next/headers';
 
 // Server-side Supabase client (use in Server Components, API routes, Server Actions)
 export async function createServerClient() {
-    const supabaseUrl = process.env.SUPABASE_URL || '';
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
     if (!supabaseUrl || !supabaseAnonKey) {
         throw new Error('Missing Supabase environment variables. Please check your .env.local file.');
