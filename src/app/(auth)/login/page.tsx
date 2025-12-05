@@ -42,14 +42,14 @@ export default function LoginPage() {
                     <div className="space-y-4">
                         <button
                             onClick={() => handleLogin('google')}
-                            className="w-full flex items-center justify-center gap-3 bg-white text-gray-900 font-bold py-3 rounded-xl hover:bg-gray-100 transition-colors transform hover:scale-[1.02]"
+                            className="w-full flex items-center justify-center gap-3 bg-white text-gray-900 font-bold py-3 rounded-xl hover:bg-gray-100 transition-colors transform hover:scale-[1.02] cursor-pointer"
                         >
                             <FaGoogle className="text-xl text-red-500" />
                             เข้าสู่ระบบด้วย Google
                         </button>
                         <button
                             onClick={() => handleLogin('facebook')}
-                            className="w-full flex items-center justify-center gap-3 bg-[#1877F2] text-white font-bold py-3 rounded-xl hover:bg-[#166fe5] transition-colors transform hover:scale-[1.02]"
+                            className="w-full flex items-center justify-center gap-3 bg-[#1877F2] text-white font-bold py-3 rounded-xl hover:bg-[#166fe5] transition-colors transform hover:scale-[1.02] cursor-pointer"
                         >
                             <FaFacebook className="text-xl" />
                             เข้าสู่ระบบด้วย Facebook
@@ -61,7 +61,7 @@ export default function LoginPage() {
                          */}
                         <button
                             onClick={() => handleLogin('line' as any)}
-                            className="w-full flex items-center justify-center gap-3 bg-[#00C300] text-white font-bold py-3 rounded-xl hover:bg-[#00b300] transition-colors transform hover:scale-[1.02]"
+                            className="w-full flex items-center justify-center gap-3 bg-[#00C300] text-white font-bold py-3 rounded-xl hover:bg-[#00b300] transition-colors transform hover:scale-[1.02] cursor-pointer"
                         >
                             <FaLine className="text-xl" />
                             เข้าสู่ระบบด้วย LINE
