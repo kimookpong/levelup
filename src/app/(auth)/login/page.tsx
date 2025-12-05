@@ -54,18 +54,6 @@ export default function LoginPage() {
                             <FaFacebook className="text-xl" />
                             เข้าสู่ระบบด้วย Facebook
                         </button>
-                        {/* Note: Supabase might not support 'line' provider out of the box without custom config, 
-                            but keeping it as per original code. If 'line' is not a valid Provider type, 
-                            we might need to cast or handle it differently. 
-                            For now assuming it works or is handled by Supabase config. 
-                         */}
-                        <button
-                            onClick={() => handleLogin('line' as any)}
-                            className="w-full flex items-center justify-center gap-3 bg-[#00C300] text-white font-bold py-3 rounded-xl hover:bg-[#00b300] transition-colors transform hover:scale-[1.02] cursor-pointer"
-                        >
-                            <FaLine className="text-xl" />
-                            เข้าสู่ระบบด้วย LINE
-                        </button>
                     </div>
 
                     <div className="mt-8 text-center text-sm text-gray-500">
