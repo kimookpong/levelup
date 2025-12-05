@@ -62,8 +62,15 @@ const PAYMENTS = [
 ];
 
 export default async function Home() {
-    const supabase = await createServerClient();
-    const { data: games } = await supabase.from('games').select('*').eq('active', true);
+    let games = [];
+    try {
+        const supabase = await createServerClient();
+        const { data } = await supabase.from('games').select('*').eq('active', true);
+        games = data || [];
+    } catch (error) {
+        console.error("Supabase connection error:", error);
+        // Fallback to empty games list or mock data if needed
+    }
 
     return (
         <main className="min-h-screen bg-[#0f1014] text-white selection:bg-primary selection:text-white">
