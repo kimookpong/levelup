@@ -200,9 +200,57 @@ export default function Navbar() {
                             </div>
 
                             {user ? (
-                                <button onClick={handleLogout} className="w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-500 hover:bg-white/5">ออกจากระบบ</button>
+                                <div className="space-y-2">
+                                    <div className="flex items-center gap-3 px-3 py-2 text-gray-400">
+                                        <div className="w-8 h-8 rounded-full bg-gray-800 overflow-hidden">
+                                            {user.user_metadata?.avatar_url ? (
+                                                <img src={user.user_metadata.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <FaUser className="w-full h-full p-2" />
+                                            )}
+                                        </div>
+                                        <span className="text-sm font-medium text-white truncate">{user.user_metadata?.full_name || user.email}</span>
+                                    </div>
+
+                                    {isAdmin && (
+                                        <Link
+                                            href="/admin"
+                                            className="flex items-center gap-2 px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
+                                            onClick={() => setIsMobileMenuOpen(false)}
+                                        >
+                                            <FaUserShield className="text-primary" />
+                                            แอดมิน
+                                        </Link>
+                                    )}
+
+                                    <Link
+                                        href="/profile"
+                                        className="flex items-center gap-2 px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
+                                        onClick={() => setIsMobileMenuOpen(false)}
+                                    >
+                                        <FaUser className="text-primary" />
+                                        โปรไฟล์
+                                    </Link>
+
+                                    <button
+                                        onClick={() => {
+                                            handleLogout();
+                                            setIsMobileMenuOpen(false);
+                                        }}
+                                        className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-base font-medium text-red-500 hover:bg-white/5 text-left"
+                                    >
+                                        <FaSignOutAlt />
+                                        ออกจากระบบ
+                                    </button>
+                                </div>
                             ) : (
-                                <Link href="/login" className="block px-3 py-2 rounded-md text-base font-medium text-primary hover:bg-white/5">เข้าสู่ระบบ</Link>
+                                <Link
+                                    href="/login"
+                                    className="block px-3 py-2 rounded-md text-base font-medium text-primary hover:bg-white/5"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                >
+                                    เข้าสู่ระบบ
+                                </Link>
                             )}
                         </div>
                     </div>

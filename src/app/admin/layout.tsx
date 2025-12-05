@@ -1,7 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import Navbar from '@/components/Navbar';
-import AdminSidebar from '@/components/AdminSidebar';
+import AdminLayoutClient from '@/components/AdminLayoutClient';
 
 export default async function AdminLayout({
     children,
@@ -23,19 +22,10 @@ export default async function AdminLayout({
         .eq('id', user.id)
         .single();
 
-    console.log(userData, user.id);
-
     if (userData?.role !== 'admin') {
         redirect('/');
     }
 
-    return (
-        <div className="min-h-screen bg-black text-white selection:bg-primary selection:text-white">
-            <Navbar />
-            <AdminSidebar />
-            <main className="ml-64 pt-28 px-8 pb-12">
-                {children}
-            </main>
-        </div>
-    );
+    return <AdminLayoutClient>{children}</AdminLayoutClient>;
 }
+
