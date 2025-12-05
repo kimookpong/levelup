@@ -61,13 +61,13 @@ export default function Navbar() {
                     <div className="flex items-center gap-12">
                         {/* Logo */}
                         <Link href="/" className="flex items-center group">
-                            <div className="relative w-20 h-20">
+                            <div className="relative w-16 h-16">
 
                                 <Image
                                     src="/logo.png"
                                     alt="Level Up Logo"
-                                    width={80}
-                                    height={80}
+                                    width={64}
+                                    height={64}
                                     className="relative z-10 drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]"
                                 />
                             </div>
