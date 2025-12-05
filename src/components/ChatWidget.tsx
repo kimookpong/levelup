@@ -18,6 +18,7 @@ export default function ChatWidget() {
     const [input, setInput] = useState('');
     const [user, setUser] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [unreadCount, setUnreadCount] = useState(0);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
@@ -41,6 +42,12 @@ export default function ChatWidget() {
             subscription.unsubscribe();
         };
     }, []);
+
+    useEffect(() => {
+        if (isOpen) {
+            setUnreadCount(0);
+        }
+    }, [isOpen]);
 
     useEffect(() => {
         if (!user) return;
@@ -91,6 +98,10 @@ export default function ChatWidget() {
                         sender: 'admin',
                         created_at: newMessage.created_at
                     }]);
+
+                    if (!isOpen) {
+                        setUnreadCount(prev => prev + 1);
+                    }
                 }
             )
             .subscribe();
@@ -98,7 +109,7 @@ export default function ChatWidget() {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [user]);
+    }, [user, isOpen]); // Added isOpen to dependency to capture current state in closure
 
     useEffect(() => {
         scrollToBottom();
@@ -143,6 +154,11 @@ export default function ChatWidget() {
                 className={`fixed bottom-6 right-6 z-50 bg-primary hover:bg-red-600 text-white p-4 rounded-full shadow-[0_0_20px_rgba(255,0,85,0.5)] transition-all transform hover:scale-110 ${isOpen ? 'hidden' : 'block'}`}
             >
                 <FaComments className="text-2xl" />
+                {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-white text-primary text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full border-2 border-primary">
+                        {unreadCount}
+                    </span>
+                )}
             </button>
 
             {/* Chat Window */}

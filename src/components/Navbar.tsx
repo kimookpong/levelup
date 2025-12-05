@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabase/client';
 import { User } from '@supabase/supabase-js';
 import { FaGamepad, FaUser, FaSignOutAlt, FaBars, FaTimes, FaSearch, FaChevronDown, FaUserShield } from 'react-icons/fa';
 import Image from 'next/image';
@@ -19,14 +19,18 @@ export default function Navbar() {
             setUser(session?.user ?? null);
 
             if (session?.user) {
-                const { data } = await supabase
+                const { data, error } = await supabase
                     .from('users')
-                    .select('role')
+                    .select('*')
                     .eq('id', session.user.id)
                     .single();
-                setIsAdmin(data?.role === 'admin');
 
-                console.log(data, session.user);
+                if (error) {
+                    console.error('Error fetching user role:', error);
+                } else {
+                    console.log('User data:', data);
+                    setIsAdmin(data?.role === 'admin');
+                }
             } else {
                 setIsAdmin(false);
             }

@@ -18,6 +18,7 @@ interface UserProfile {
     full_name: string;
     email: string;
     avatar_url: string;
+    last_message_at?: string;
 }
 
 export default function AdminChat() {
@@ -37,35 +38,41 @@ export default function AdminChat() {
         getAdmin();
     }, []);
 
-    // Fetch unique users who have chatted
+    // Fetch conversations using RPC
+    const fetchConversations = async () => {
+        const { data, error } = await supabase.rpc('get_chat_users');
+        if (error) {
+            console.error('Error fetching conversations:', error);
+        } else if (data) {
+            // Filter out the admin themselves if they appear in the list
+            const filtered = data.filter((u: any) => u.id !== adminId);
+            // Sort by last_message_at desc
+            filtered.sort((a: any, b: any) =>
+                new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+            );
+            setConversations(filtered);
+        }
+    };
+
     useEffect(() => {
-        const fetchConversations = async () => {
-            // This is a simplified approach. Ideally, you'd have a 'conversations' table or a distinct query.
-            // For now, we'll fetch all messages and extract unique users.
-            const { data } = await supabase
-                .from('chat_messages')
-                .select('sender_id, receiver_id')
-                .order('created_at', { ascending: false });
+        if (adminId) {
+            fetchConversations();
 
-            if (data) {
-                const userIds = new Set<string>();
-                data.forEach(msg => {
-                    if (msg.sender_id && msg.sender_id !== adminId) userIds.add(msg.sender_id);
-                    if (msg.receiver_id && msg.receiver_id !== adminId) userIds.add(msg.receiver_id);
-                });
+            // Subscribe to ALL new messages to update the conversation list order
+            const globalChannel = supabase
+                .channel('global_chat_updates')
+                .on('postgres_changes',
+                    { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+                    () => {
+                        fetchConversations();
+                    }
+                )
+                .subscribe();
 
-                if (userIds.size > 0) {
-                    const { data: users } = await supabase
-                        .from('users')
-                        .select('*')
-                        .in('id', Array.from(userIds));
-
-                    if (users) setConversations(users);
-                }
-            }
-        };
-
-        if (adminId) fetchConversations();
+            return () => {
+                supabase.removeChannel(globalChannel);
+            };
+        }
     }, [adminId]);
 
     // Fetch messages for selected user
@@ -146,6 +153,9 @@ export default function AdminChat() {
             sender_id: adminId,
             receiver_id: selectedUser.id
         });
+
+        // Refresh conversations to update timestamp
+        fetchConversations();
     };
 
     return (
@@ -179,8 +189,15 @@ export default function AdminChat() {
                                     </div>
                                 )}
                             </div>
-                            <div className="text-left overflow-hidden">
-                                <h3 className="font-bold text-white truncate">{user.full_name || 'User'}</h3>
+                            <div className="text-left overflow-hidden flex-1">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="font-bold text-white truncate">{user.full_name || 'User'}</h3>
+                                    {user.last_message_at && (
+                                        <span className="text-[10px] text-gray-500">
+                                            {new Date(user.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    )}
+                                </div>
                                 <p className="text-xs text-gray-400 truncate">{user.email}</p>
                             </div>
                         </button>

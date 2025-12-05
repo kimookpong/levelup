@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FaGamepad, FaBox, FaHistory, FaTags, FaComments, FaSignOutAlt } from 'react-icons/fa';
+import { FaGamepad, FaBox, FaHistory, FaTags, FaComments, FaSignOutAlt, FaHome, FaUsers } from 'react-icons/fa';
 
 export default function AdminSidebar() {
     const pathname = usePathname();
@@ -10,10 +10,12 @@ export default function AdminSidebar() {
     const isActive = (path: string) => pathname === path;
 
     const navItems = [
-        { path: '/admin', icon: <FaGamepad />, label: 'จัดการเกม' },
+        { path: '/admin', icon: <FaHome />, label: 'หน้าแรก' },
+        { path: '/admin/games', icon: <FaGamepad />, label: 'จัดการเกม' },
         { path: '/admin/packages', icon: <FaBox />, label: 'จัดการแพ็กเกจ' },
         { path: '/admin/transactions', icon: <FaHistory />, label: 'รายการธุรกรรม' },
         { path: '/admin/promotions', icon: <FaTags />, label: 'โปรโมชั่น' },
+        { path: '/admin/users', icon: <FaUsers />, label: 'ผู้ใช้งาน' },
         { path: '/admin/chat', icon: <FaComments />, label: 'แชทช่วยเหลือ' },
     ];
 

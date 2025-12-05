@@ -1,0 +1,79 @@
+import { createServerClient } from '@/lib/supabase/server';
+import { FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
+
+export default async function AdminPackages() {
+    const supabase = await createServerClient();
+    const { data: packages } = await supabase
+        .from('packages')
+        .select('*, games(name, image_url)')
+        .order('created_at', { ascending: false });
+
+    return (
+        <div>
+            <div className="flex items-center justify-between mb-8 animate-fade-in">
+                <div>
+                    <h1 className="text-4xl font-display font-bold text-white mb-2">จัดการแพ็กเกจ</h1>
+                    <p className="text-gray-400">เพิ่ม แก้ไข หรือลบแพ็กเกจเติมเกม</p>
+                </div>
+                <button className="flex items-center gap-2 bg-primary hover:bg-red-600 text-white px-6 py-3 rounded-xl font-bold transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(255,0,85,0.4)]">
+                    <FaPlus />
+                    เพิ่มแพ็กเกจ
+                </button>
+            </div>
+
+            <div className="glass rounded-3xl overflow-hidden animate-fade-in-up shadow-2xl">
+                <table className="w-full text-left">
+                    <thead className="bg-white/5 border-b border-white/10">
+                        <tr>
+                            <th className="p-6 font-bold text-gray-300 uppercase tracking-wider text-sm">เกม</th>
+                            <th className="p-6 font-bold text-gray-300 uppercase tracking-wider text-sm">ชื่อแพ็กเกจ</th>
+                            <th className="p-6 font-bold text-gray-300 uppercase tracking-wider text-sm">ราคา</th>
+                            <th className="p-6 font-bold text-gray-300 uppercase tracking-wider text-sm">รูปภาพ</th>
+                            <th className="p-6 font-bold text-gray-300 uppercase tracking-wider text-sm text-right">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                        {packages?.map((pkg: any) => (
+                            <tr key={pkg.id} className="hover:bg-white/5 transition-colors group">
+                                <td className="p-6">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-800">
+                                            <img src={pkg.games?.image_url} alt={pkg.games?.name} className="w-full h-full object-cover" />
+                                        </div>
+                                        <span className="font-bold text-white">{pkg.games?.name}</span>
+                                    </div>
+                                </td>
+                                <td className="p-6 font-medium text-gray-200">{pkg.name}</td>
+                                <td className="p-6 font-mono text-primary font-bold">{pkg.price.toLocaleString()} THB</td>
+                                <td className="p-6">
+                                    {pkg.image_url ? (
+                                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-800">
+                                            <img src={pkg.image_url} alt={pkg.name} className="w-full h-full object-cover" />
+                                        </div>
+                                    ) : (
+                                        <span className="text-gray-500 text-sm">-</span>
+                                    )}
+                                </td>
+                                <td className="p-6 text-right space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Edit">
+                                        <FaEdit />
+                                    </button>
+                                    <button className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors" title="Delete">
+                                        <FaTrash />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                        {(!packages || packages.length === 0) && (
+                            <tr>
+                                <td colSpan={5} className="p-12 text-center text-gray-500">
+                                    ไม่พบข้อมูลแพ็กเกจ
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+}
