@@ -63,9 +63,9 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
             if (error) throw error;
 
             setGames(games.map(g => g.id === id ? { ...g, active: !currentStatus } : g));
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error toggling status:', error);
-            alert('เกิดข้อผิดพลาดในการเปลี่ยนสถานะ');
+            alert(`เกิดข้อผิดพลาดในการเปลี่ยนสถานะ: ${error.message || error}`);
         }
     };
 
@@ -81,9 +81,9 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
             if (error) throw error;
 
             setGames(games.filter(g => g.id !== id));
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error deleting game:', error);
-            alert('เกิดข้อผิดพลาดในการลบเกม');
+            alert(`เกิดข้อผิดพลาดในการลบเกม: ${error.message || error}`);
         }
     };
 
@@ -117,9 +117,9 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                 setGames([data, ...games]);
             }
             handleCloseModal();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error saving game:', error);
-            alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+            alert(`เกิดข้อผิดพลาดในการบันทึกข้อมูล: ${error.message || error}`);
         } finally {
             setLoading(false);
         }
