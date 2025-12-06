@@ -216,7 +216,7 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
             {/* Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-[#1a1b26] border border-white/10 rounded-3xl p-8 w-full max-w-md shadow-2xl relative animate-scale-in">
+                    <div className="bg-[#1a1b26] border border-white/10 rounded-3xl p-8 w-full max-w-xl shadow-2xl relative animate-scale-in">
                         <button
                             onClick={handleCloseModal}
                             className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
@@ -252,7 +252,7 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                             <div>
                                 <label className="block text-gray-400 text-sm font-bold mb-2">รูปภาพ URL</label>
                                 {(formData.image_url.startsWith('http') || formData.image_url.startsWith('/')) && (
-                                    <div className="mb-4 relative aspect-[2/3] h-[200px] rounded-xl overflow-hidden border border-white/10 bg-black/50">
+                                    <div className="mb-4 relative aspect-[2/3] h-[100px] rounded-xl overflow-hidden border border-white/10 bg-black/50">
                                         <Image
                                             src={formData.image_url}
                                             alt="Preview"
