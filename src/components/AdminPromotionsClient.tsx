@@ -82,25 +82,10 @@ export default function AdminPromotionsClient({ initialPromotions }: AdminPromot
         resetForm();
     };
 
-    // Helper function to ensure session is valid
-    const ensureSession = async () => {
-        const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError) console.error('Session refresh error:', refreshError);
-
-        if (!session) {
-            const { data: { session: currentSession } } = await supabase.auth.getSession();
-            if (!currentSession) throw new Error('กรุณาเข้าสู่ระบบใหม่');
-            return currentSession;
-        }
-        return session;
-    };
-
     const handleDelete = async (id: string) => {
         if (!confirm('คุณแน่ใจหรือไม่ที่จะลบโปรโมชั่นนี้?')) return;
 
         try {
-            await ensureSession();
-
             const { error } = await supabase
                 .from('promotions')
                 .delete()
@@ -119,8 +104,6 @@ export default function AdminPromotionsClient({ initialPromotions }: AdminPromot
         setLoading(true);
 
         try {
-            await ensureSession();
-
             const saveData = {
                 code: formData.code.toUpperCase(),
                 discount_type: formData.discount_type,

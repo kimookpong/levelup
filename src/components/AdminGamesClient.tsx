@@ -73,31 +73,8 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
         resetForm();
     };
 
-    // Helper function to ensure session is valid before operations
-    const ensureSession = async () => {
-        // Try to refresh session first
-        const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
-
-        if (refreshError) {
-            console.error('Session refresh error:', refreshError);
-        }
-
-        // Fallback to getSession if refresh fails
-        if (!session) {
-            const { data: { session: currentSession } } = await supabase.auth.getSession();
-            if (!currentSession) {
-                throw new Error('กรุณาเข้าสู่ระบบใหม่');
-            }
-            return currentSession;
-        }
-
-        return session;
-    };
-
     const handleToggleStatus = async (id: string, currentStatus: boolean) => {
         try {
-            await ensureSession();
-
             const { data, error } = await supabase
                 .from('games')
                 .update({ active: !currentStatus })
@@ -111,7 +88,6 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                 throw error;
             }
 
-            // Always fetch fresh data after update to ensure consistency
             await fetchGames();
         } catch (error: any) {
             console.error('Error toggling status:', error);
@@ -123,8 +99,6 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
         if (!confirm('คุณแน่ใจหรือไม่ที่จะลบเกมนี้?')) return;
 
         try {
-            await ensureSession();
-
             const { error } = await supabase
                 .from('games')
                 .delete()
@@ -137,7 +111,6 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                 throw error;
             }
 
-            // Always fetch fresh data after delete
             await fetchGames();
         } catch (error: any) {
             console.error('Error deleting game:', error);
@@ -150,16 +123,17 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
         setLoading(true);
 
         try {
-            await ensureSession();
+            console.log('Saving game...', editingGame ? 'UPDATE' : 'INSERT', formData);
 
             if (editingGame) {
                 // Update
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from('games')
                     .update(formData)
-                    .eq('id', editingGame.id);
+                    .eq('id', editingGame.id)
+                    .select();
 
-                console.log('Update result:', { error });
+                console.log('Update result:', { data, error });
 
                 if (error) {
                     console.error('Update error details:', error);
@@ -167,11 +141,12 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                 }
             } else {
                 // Insert
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from('games')
-                    .insert([formData]);
+                    .insert([formData])
+                    .select();
 
-                console.log('Insert result:', { error });
+                console.log('Insert result:', { data, error });
 
                 if (error) {
                     console.error('Insert error details:', error);
@@ -179,7 +154,7 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                 }
             }
 
-            // Always fetch fresh data after save
+            console.log('Save successful, fetching games...');
             await fetchGames();
             setIsModalOpen(false);
             resetForm();

@@ -60,19 +60,6 @@ export default function AdminTransactionsClient({ initialTransactions }: AdminTr
         }
     }, [filterStatus]);
 
-    // Helper function to ensure session is valid
-    const ensureSession = async () => {
-        const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError) console.error('Session refresh error:', refreshError);
-
-        if (!session) {
-            const { data: { session: currentSession } } = await supabase.auth.getSession();
-            if (!currentSession) throw new Error('กรุณาเข้าสู่ระบบใหม่');
-            return currentSession;
-        }
-        return session;
-    };
-
     const handleUpdateStatus = async (id: string, newStatus: 'success' | 'failed') => {
         const confirmMsg = newStatus === 'success'
             ? 'ยืนยันว่าธุรกรรมนี้สำเร็จแล้ว?'
@@ -81,8 +68,6 @@ export default function AdminTransactionsClient({ initialTransactions }: AdminTr
         if (!confirm(confirmMsg)) return;
 
         try {
-            await ensureSession();
-
             const { error } = await supabase
                 .from('transactions')
                 .update({ status: newStatus })

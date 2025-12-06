@@ -104,25 +104,10 @@ export default function AdminPackagesClient({ initialPackages, initialGames }: A
         resetForm();
     };
 
-    // Helper function to ensure session is valid
-    const ensureSession = async () => {
-        const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError) console.error('Session refresh error:', refreshError);
-
-        if (!session) {
-            const { data: { session: currentSession } } = await supabase.auth.getSession();
-            if (!currentSession) throw new Error('กรุณาเข้าสู่ระบบใหม่');
-            return currentSession;
-        }
-        return session;
-    };
-
     const handleDelete = async (id: string) => {
         if (!confirm('คุณแน่ใจหรือไม่ที่จะลบแพ็กเกจนี้?')) return;
 
         try {
-            await ensureSession();
-
             const { error } = await supabase
                 .from('packages')
                 .delete()
@@ -141,8 +126,6 @@ export default function AdminPackagesClient({ initialPackages, initialGames }: A
         setLoading(true);
 
         try {
-            await ensureSession();
-
             const saveData = {
                 game_id: formData.game_id,
                 name: formData.name,
