@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Image from 'next/image';
-import { supabase } from '@/lib/supabase/client';
 import { FaPlus, FaEdit, FaTrash, FaTimes, FaCheck, FaSync, FaImage } from 'react-icons/fa';
 
 interface Game {
@@ -14,10 +13,10 @@ interface Game {
 }
 
 interface AdminGamesClientProps {
-    initialGames: Game[];
+    initialGames?: Game[];
 }
 
-export default function AdminGamesClient({ initialGames }: AdminGamesClientProps) {
+export default function AdminGamesClient({ initialGames = [] }: AdminGamesClientProps) {
     const [games, setGames] = useState<Game[]>(initialGames);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingGame, setEditingGame] = useState<Game | null>(null);
@@ -36,12 +35,9 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
     const fetchGames = useCallback(async () => {
         setRefreshing(true);
         try {
-            const { data, error } = await supabase
-                .from('games')
-                .select('*')
-                .order('created_at', { ascending: false });
+            const { data, error } = await import('@/actions/games').then(m => m.getGames());
 
-            if (error) throw error;
+            if (error) throw new Error(error);
             if (data) setGames(data);
         } catch (error) {
             console.error('Error fetching games:', error);
@@ -49,6 +45,12 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
             setRefreshing(false);
         }
     }, []);
+
+    useEffect(() => {
+        if (!initialGames || initialGames.length === 0) {
+            fetchGames();
+        }
+    }, [initialGames, fetchGames]);
 
     const resetForm = () => {
         setFormData({ name: '', slug: '', image_url: '', active: true });
@@ -79,16 +81,11 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
 
     const handleToggleStatus = async (id: string, currentStatus: boolean) => {
         try {
-            const { error } = await supabase
-                .from('games')
-                .update({ active: !currentStatus })
-                .eq('id', id);
-
-            console.log('Toggle result:', { error });
+            const { error } = await import('@/actions/games').then(m => m.toggleGameStatus(id, currentStatus));
 
             if (error) {
                 console.error('Toggle error details:', error);
-                throw error;
+                throw new Error(error);
             }
 
             await fetchGames();
@@ -102,16 +99,11 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
         if (!confirm('คุณแน่ใจหรือไม่ที่จะลบเกมนี้?')) return;
 
         try {
-            const { error } = await supabase
-                .from('games')
-                .delete()
-                .eq('id', id);
-
-            console.log('Delete result:', { error });
+            const { error } = await import('@/actions/games').then(m => m.deleteGame(id));
 
             if (error) {
                 console.error('Delete error details:', error);
-                throw error;
+                throw new Error(error);
             }
 
             await fetchGames();
@@ -128,31 +120,15 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
         try {
             console.log('Saving game...', editingGame ? 'UPDATE' : 'INSERT', formData);
 
+            let result;
             if (editingGame) {
-                // Update
-                const { error } = await supabase
-                    .from('games')
-                    .update(formData)
-                    .eq('id', editingGame.id);
-
-                console.log('Update result:', { error });
-
-                if (error) {
-                    console.error('Update error details:', error);
-                    throw error;
-                }
+                result = await import('@/actions/games').then(m => m.updateGame(editingGame.id, formData));
             } else {
-                // Insert
-                const { error } = await supabase
-                    .from('games')
-                    .insert([formData]);
+                result = await import('@/actions/games').then(m => m.createGame(formData));
+            }
 
-                console.log('Insert result:', { error });
-
-                if (error) {
-                    console.error('Insert error details:', error);
-                    throw error;
-                }
+            if (result.error) {
+                throw new Error(result.error);
             }
 
             console.log('Save successful, fetching games...');
@@ -161,11 +137,7 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
             resetForm();
         } catch (error: any) {
             console.error('Error saving game:', error);
-            if (error.code === '23505') {
-                alert('ชื่อ Slug ซ้ำ! กรุณาใช้ชื่ออื่น');
-            } else {
-                alert(`เกิดข้อผิดพลาดในการบันทึก: ${error.message || error}`);
-            }
+            alert(`เกิดข้อผิดพลาดในการบันทึก: ${error.message || error}`);
         } finally {
             setLoading(false);
         }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { supabase } from '@/lib/supabase/client';
+import { useAuth } from '@/components/AuthProvider';
 import { FaPaperPlane, FaUser, FaSearch, FaSync } from 'react-icons/fa';
 import Image from 'next/image';
 
@@ -29,73 +29,28 @@ export default function AdminChat() {
     const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
-    const [adminId, setAdminId] = useState<string | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [loading, setLoading] = useState(true);
     const [messagesLoading, setMessagesLoading] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const isInitialized = useRef(false);
 
-    // Get Admin ID
-    useEffect(() => {
-        const getAdmin = async () => {
-            try {
-                const { data: { user } } = await supabase.auth.getUser();
-                setAdminId(user?.id || null);
-            } catch (error) {
-                console.error('Error getting admin:', error);
-            } finally {
-                isInitialized.current = true;
-            }
-        };
-        getAdmin();
-    }, []);
+    const { user } = useAuth();
+    const adminId = user?.id;
 
-    // Fetch conversations using RPC
+    // Fetch conversations
     const fetchConversations = useCallback(async (showLoading = false) => {
         if (!adminId) return;
 
         if (showLoading) setLoading(true);
 
         try {
-            const { data, error } = await supabase.rpc('get_chat_users');
+            const { data, error } = await import('@/actions/chat').then(m => m.getChatUsers());
 
             if (error) {
                 console.error('Error fetching conversations:', error);
-                // Fallback: fetch from chat_messages directly
-                const { data: fallbackData } = await supabase
-                    .from('chat_messages')
-                    .select('sender_id, receiver_id, created_at')
-                    .order('created_at', { ascending: false });
-
-                if (fallbackData) {
-                    // Get unique user IDs (excluding admin)
-                    const userIds = new Set<string>();
-                    fallbackData.forEach((msg: any) => {
-                        if (msg.sender_id && msg.sender_id !== adminId) userIds.add(msg.sender_id);
-                        if (msg.receiver_id && msg.receiver_id !== adminId) userIds.add(msg.receiver_id);
-                    });
-
-                    // Fetch user profiles
-                    if (userIds.size > 0) {
-                        const { data: usersData } = await supabase
-                            .from('users')
-                            .select('id, full_name, email, avatar_url')
-                            .in('id', Array.from(userIds));
-
-                        if (usersData) {
-                            setConversations(usersData);
-                        }
-                    }
-                }
             } else if (data) {
-                // Filter out the admin themselves if they appear in the list
-                const filtered = data.filter((u: any) => u.id !== adminId);
-                // Sort by last_message_at desc
-                filtered.sort((a: any, b: any) =>
-                    new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime()
-                );
-                setConversations(filtered);
+                // @ts-ignore
+                setConversations(data);
             }
         } catch (error) {
             console.error('Error fetching conversations:', error);
@@ -111,11 +66,7 @@ export default function AdminChat() {
         if (showLoading) setMessagesLoading(true);
 
         try {
-            const { data, error } = await supabase
-                .from('chat_messages')
-                .select('*')
-                .or(`sender_id.eq.${selectedUser.id},receiver_id.eq.${selectedUser.id}`)
-                .order('created_at', { ascending: true });
+            const { data, error } = await import('@/actions/chat').then(m => m.getMessages(selectedUser.id));
 
             if (error) {
                 console.error('Error fetching messages:', error);
@@ -123,9 +74,10 @@ export default function AdminChat() {
             }
 
             if (data) {
+                // @ts-ignore
                 setMessages(data.map((msg: any) => ({
                     id: msg.id,
-                    text: msg.message,
+                    text: msg.message, // Map message to text
                     sender_id: msg.sender_id,
                     receiver_id: msg.receiver_id,
                     created_at: msg.created_at,
@@ -145,7 +97,7 @@ export default function AdminChat() {
 
         fetchConversations(true);
 
-        // Polling for new conversations (without loading indicator)
+        // Polling for new conversations
         const intervalId = setInterval(() => {
             fetchConversations(false);
         }, POLLING_INTERVAL);
@@ -161,7 +113,7 @@ export default function AdminChat() {
 
         fetchMessages(true);
 
-        // Polling for new messages (without loading indicator)
+        // Polling for new messages
         const intervalId = setInterval(() => {
             fetchMessages(false);
         }, POLLING_INTERVAL);
@@ -199,19 +151,13 @@ export default function AdminChat() {
         setInput('');
 
         try {
-            const { error } = await supabase.from('chat_messages').insert({
-                message: messageText,
-                sender_id: adminId,
-                receiver_id: selectedUser.id
-            });
+            const { error } = await import('@/actions/chat').then(m => m.sendMessage(messageText, selectedUser.id));
 
             if (error) {
                 console.error('Error sending message:', error);
-                // Remove optimistic message on error
                 setMessages(prev => prev.filter(m => m.id !== tempId));
                 alert('ส่งข้อความไม่สำเร็จ กรุณาลองใหม่');
             } else {
-                // Refresh conversations to update timestamp
                 fetchConversations(false);
             }
         } catch (error) {

@@ -14,7 +14,7 @@ interface GameProps {
 
 export default function GameCard({ game }: { game: GameProps }) {
     return (
-        <Link href={`/${game.slug}`} className="group relative block h-full">
+        <Link href={`/games/${game.slug}`} className="group relative block h-full">
             <div className="relative h-full w-full overflow-hidden rounded-xl border border-white/5 bg-[#1a1b26] transition-all duration-300 hover:border-primary/50 hover:shadow-[0_0_20px_rgba(255,0,85,0.2)] hover:-translate-y-1">
                 {/* Image Container */}
                 <div className="relative aspect-[2/3] w-full overflow-hidden">

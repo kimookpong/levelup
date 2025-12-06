@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import PackageCard from '@/components/PackageCard';
+import { FaShieldAlt, FaBolt, FaHeadset, FaCheck, FaStar, FaGamepad } from 'react-icons/fa';
 import PaymentModal from '@/components/PaymentModal';
+import PackageCard from '@/components/PackageCard';
 import Image from 'next/image';
-import { supabase } from '@/lib/supabase/client';
+import { getGameBySlug } from '@/actions/games';
 
 export default function TopUpPage() {
     const params = useParams();
@@ -16,49 +17,28 @@ export default function TopUpPage() {
     const [game, setGame] = useState<any>(null);
     const [packages, setPackages] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
-    const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
+    const [selectedPackage, setSelectedPackage] = useState<any>(null);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
     const [playerId, setPlayerId] = useState('');
 
     useEffect(() => {
-        const fetchGameData = async () => {
+        const fetchData = async () => {
+            if (!slug) return;
             try {
                 setLoading(true);
-                // 1. Fetch game details
-                const { data: gameData, error: gameError } = await supabase
-                    .from('games')
-                    .select('*')
-                    .eq('slug', slug)
-                    .single();
-
-                if (gameError) throw gameError;
-                if (gameData) {
-                    setGame(gameData);
-
-                    // 2. Fetch packages for this game
-                    // Assuming 'packages' table has 'game_id' foreign key
-                    const { data: packagesData, error: packagesError } = await supabase
-                        .from('packages')
-                        .select('*')
-                        .eq('game_id', gameData.id)
-                        .order('price', { ascending: true });
-
-                    if (packagesError) {
-                        console.error('Error fetching packages:', packagesError);
-                    } else {
-                        setPackages(packagesData || []);
-                    }
+                const { data, error } = await getGameBySlug(slug);
+                if (data) {
+                    setGame(data);
+                    // @ts-ignore
+                    setPackages(data.packages || []);
                 }
-            } catch (error) {
-                console.error('Error fetching game data:', error);
+            } catch (err) {
+                console.error(err);
             } finally {
                 setLoading(false);
             }
         };
-
-        if (slug) {
-            fetchGameData();
-        }
+        fetchData();
     }, [slug]);
 
     if (loading) {

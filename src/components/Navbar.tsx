@@ -2,10 +2,10 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/components/AuthProvider';
 import { FaGamepad, FaUser, FaSignOutAlt, FaBars, FaTimes, FaSearch, FaChevronDown, FaUserShield } from 'react-icons/fa';
 import Image from 'next/image';
+import { signIn, signOut } from 'next-auth/react';
 
 export default function Navbar() {
     const { user, isAdmin } = useAuth();
@@ -25,8 +25,12 @@ export default function Navbar() {
         };
     }, []);
 
-    const handleLogout = async () => {
-        await supabase.auth.signOut();
+    const handleLogin = () => {
+        signIn('google');
+    };
+
+    const handleLogout = () => {
+        signOut();
     };
 
     return (
@@ -88,9 +92,9 @@ export default function Navbar() {
                                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                                     className="relative w-10 h-10 rounded-full bg-[#1a1b26] border border-white/10 flex items-center justify-center hover:border-primary/50 transition-all group overflow-hidden focus:outline-none"
                                 >
-                                    {user.user_metadata?.avatar_url ? (
+                                    {user.image ? (
                                         <Image
-                                            src={user.user_metadata.avatar_url}
+                                            src={user.image}
                                             alt="User Avatar"
                                             fill
                                             sizes="40px"
@@ -138,12 +142,12 @@ export default function Navbar() {
                                 )}
                             </div>
                         ) : (
-                            <Link
-                                href="/login"
+                            <button
+                                onClick={handleLogin}
                                 className="w-10 h-10 rounded-full bg-[#1a1b26] border border-white/10 flex items-center justify-center hover:border-primary/50 transition-all group"
                             >
                                 <FaUser className="text-gray-400 group-hover:text-white transition-colors" />
-                            </Link>
+                            </button>
                         )}
                     </div>
 
@@ -182,13 +186,13 @@ export default function Navbar() {
                                 <div className="space-y-2">
                                     <div className="flex items-center gap-3 px-3 py-2 text-gray-400">
                                         <div className="relative w-8 h-8 rounded-full bg-gray-800 overflow-hidden">
-                                            {user.user_metadata?.avatar_url ? (
-                                                <Image src={user.user_metadata.avatar_url} alt="Avatar" fill sizes="32px" className="object-cover" />
+                                            {user.image ? (
+                                                <Image src={user.image} alt="Avatar" fill sizes="32px" className="object-cover" />
                                             ) : (
                                                 <FaUser className="w-full h-full p-2" />
                                             )}
                                         </div>
-                                        <span className="text-sm font-medium text-white truncate">{user.user_metadata?.full_name || user.email}</span>
+                                        <span className="text-sm font-medium text-white truncate">{user.name || user.email}</span>
                                     </div>
 
                                     {isAdmin && (
@@ -223,13 +227,15 @@ export default function Navbar() {
                                     </button>
                                 </div>
                             ) : (
-                                <Link
-                                    href="/login"
-                                    className="block px-3 py-2 rounded-md text-base font-medium text-primary hover:bg-white/5"
-                                    onClick={() => setIsMobileMenuOpen(false)}
+                                <button
+                                    onClick={() => {
+                                        handleLogin();
+                                        setIsMobileMenuOpen(false);
+                                    }}
+                                    className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-primary hover:bg-white/5"
                                 >
                                     เข้าสู่ระบบ
-                                </Link>
+                                </button>
                             )}
                         </div>
                     </div>

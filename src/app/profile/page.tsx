@@ -3,9 +3,9 @@
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { FaHistory, FaGamepad, FaCoins, FaSignOutAlt } from 'react-icons/fa';
-import { supabase } from '@/lib/supabase/client';
 import { useAuth } from '@/components/AuthProvider';
 import Image from 'next/image';
+import { signOut } from 'next-auth/react';
 
 // Mock Data
 const HISTORY = [
@@ -25,8 +25,8 @@ export default function ProfilePage() {
         );
     }
 
-    const avatarUrl = user?.user_metadata?.avatar_url;
-    const fullName = user?.user_metadata?.full_name || user?.user_metadata?.name || 'User';
+    const avatarUrl = user?.image;
+    const fullName = user?.name || 'User';
     const email = user?.email || 'No email provided';
 
     return (
@@ -54,10 +54,7 @@ export default function ProfilePage() {
                         <h1 className="text-3xl font-bold">{fullName}</h1>
                         <p className="text-gray-400 mb-4">{email}</p>
                         <button
-                            onClick={async () => {
-                                await supabase.auth.signOut();
-                                window.location.href = '/login';
-                            }}
+                            onClick={() => signOut()}
                             className="px-4 py-2 bg-red-500/10 text-red-500 border border-red-500/20 rounded-lg hover:bg-red-500/20 transition-colors text-sm font-bold flex items-center gap-2"
                         >
                             <FaSignOutAlt />

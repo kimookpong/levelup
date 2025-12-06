@@ -4,7 +4,7 @@ import HomeClient from '@/components/HomeClient';
 import { FaBolt, FaShieldAlt, FaHeadset, FaNewspaper, FaStar, FaCreditCard } from 'react-icons/fa';
 import Image from 'next/image';
 
-import { createServerClient } from '@/lib/supabase/server';
+import { getActiveGames } from '@/actions/games';
 
 const NEWS = [
     {
@@ -62,14 +62,12 @@ const PAYMENTS = [
 ];
 
 export default async function Home() {
-    let games = [];
+    let games: any[] = [];
     try {
-        const supabase = await createServerClient();
-        const { data } = await supabase.from('games').select('*').eq('active', true);
-        games = data || [];
+        const { data, error } = await getActiveGames();
+        if (data) games = data;
     } catch (error) {
-        console.error("Supabase connection error:", error);
-        // Fallback to empty games list or mock data if needed
+        console.error("Database connection error:", error);
     }
 
     return (

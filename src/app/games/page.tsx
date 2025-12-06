@@ -1,22 +1,15 @@
-import { createServerClient } from '@/lib/supabase/server';
+import { getActiveGames } from '@/actions/games';
 import GamesClient from '@/components/GamesClient';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
 export default async function GamesPage() {
-    let games = [];
-
+    let games: any[] = [];
     try {
-        const supabase = await createServerClient();
-        const { data } = await supabase
-            .from('games')
-            .select('*')
-            .eq('active', true)
-            .order('name');
-
-        games = data || [];
+        const { data, error } = await getActiveGames();
+        if (data) games = data;
     } catch (error) {
-        console.error("Error fetching games:", error);
+        console.error("Database error:", error);
     }
 
     return (

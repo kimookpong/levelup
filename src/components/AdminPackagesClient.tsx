@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
-import { supabase } from '@/lib/supabase/client';
 import { FaPlus, FaEdit, FaTrash, FaTimes, FaSync } from 'react-icons/fa';
 
 interface Game {
@@ -23,13 +22,14 @@ interface Package {
 }
 
 interface AdminPackagesClientProps {
-    initialPackages: Package[];
-    initialGames: Game[];
+    initialPackages?: Package[];
+    initialGames?: Game[];
 }
 
-export default function AdminPackagesClient({ initialPackages, initialGames }: AdminPackagesClientProps) {
+export default function AdminPackagesClient({ initialPackages = [], initialGames = [] }: AdminPackagesClientProps) {
     const [packages, setPackages] = useState<Package[]>(initialPackages);
-    const [games] = useState<Game[]>(initialGames);
+    // Remove initialGames from useState to manage it properly
+    const [games, setGames] = useState<Game[]>(initialGames);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPackage, setEditingPackage] = useState<Package | null>(null);
     const [formData, setFormData] = useState({
@@ -44,20 +44,22 @@ export default function AdminPackagesClient({ initialPackages, initialGames }: A
     const [refreshing, setRefreshing] = useState(false);
     const [filterGameId, setFilterGameId] = useState<string>('');
 
+    const fetchGames = useCallback(async () => {
+        try {
+            const { data } = await import('@/actions/games').then(m => m.getGames());
+            if (data) setGames(data);
+        } catch (error) {
+            console.error("Error fetching games", error);
+        }
+    }, []);
+
     const fetchPackages = useCallback(async () => {
         setRefreshing(true);
         try {
-            let query = supabase
-                .from('packages')
-                .select('*, games(id, name, image_url)')
-                .order('created_at', { ascending: false });
+            const { data, error } = await import('@/actions/packages').then(m => m.getPackages(filterGameId));
 
-            if (filterGameId) {
-                query = query.eq('game_id', filterGameId);
-            }
-
-            const { data, error } = await query;
-            if (error) throw error;
+            if (error) throw new Error(error);
+            // @ts-ignore
             if (data) setPackages(data);
         } catch (error) {
             console.error('Error fetching packages:', error);
@@ -67,8 +69,15 @@ export default function AdminPackagesClient({ initialPackages, initialGames }: A
     }, [filterGameId]);
 
     useEffect(() => {
-        fetchPackages();
-    }, [filterGameId, fetchPackages]);
+        // Fetch if not provided
+        if (!initialGames || initialGames.length === 0) {
+            fetchGames();
+        }
+        // Always fetch packages to be safe or if empty
+        if (!initialPackages || initialPackages.length === 0) {
+            fetchPackages();
+        }
+    }, [filterGameId, fetchPackages, fetchGames]);
 
     const resetForm = () => {
         setFormData({
@@ -108,12 +117,9 @@ export default function AdminPackagesClient({ initialPackages, initialGames }: A
         if (!confirm('คุณแน่ใจหรือไม่ที่จะลบแพ็กเกจนี้?')) return;
 
         try {
-            const { error } = await supabase
-                .from('packages')
-                .delete()
-                .eq('id', id);
+            const { error } = await import('@/actions/packages').then(m => m.deletePackage(id));
 
-            if (error) throw error;
+            if (error) throw new Error(error);
             await fetchPackages();
         } catch (error: any) {
             console.error('Error deleting package:', error);
@@ -135,20 +141,14 @@ export default function AdminPackagesClient({ initialPackages, initialGames }: A
                 active: formData.active
             };
 
+            let result;
             if (editingPackage) {
-                const { error } = await supabase
-                    .from('packages')
-                    .update(saveData)
-                    .eq('id', editingPackage.id);
-
-                if (error) throw error;
+                result = await import('@/actions/packages').then(m => m.updatePackage(editingPackage.id, saveData));
             } else {
-                const { error } = await supabase
-                    .from('packages')
-                    .insert([saveData]);
-
-                if (error) throw error;
+                result = await import('@/actions/packages').then(m => m.createPackage(saveData));
             }
+
+            if (result.error) throw new Error(result.error);
 
             await fetchPackages();
             handleCloseModal();
