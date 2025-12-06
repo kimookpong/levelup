@@ -15,14 +15,27 @@ export default async function AdminLayout({
         redirect('/login');
     }
 
-    // Check if user is admin
-    const { data: userData } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', user.id)
-        .single();
+    // Check if user is admin with retry (in case of race condition with auth callback)
+    let isAdmin = false;
+    let retries = 3;
 
-    if (userData?.role !== 'admin') {
+    while (retries > 0 && !isAdmin) {
+        const { data: userData, error } = await supabase
+            .from('users')
+            .select('role')
+            .eq('id', user.id)
+            .single();
+
+        if (!error && userData?.role === 'admin') {
+            isAdmin = true;
+        } else if (retries > 1) {
+            // Wait 300ms before retry
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
+        retries--;
+    }
+
+    if (!isAdmin) {
         redirect('/');
     }
 

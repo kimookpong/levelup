@@ -20,25 +20,37 @@ export default function ChatWidget() {
     const [input, setInput] = useState('');
     const [user, setUser] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [messagesLoading, setMessagesLoading] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [lastMessageCount, setLastMessageCount] = useState(0);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const isInitialized = useRef(false);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
     useEffect(() => {
-        // Check auth state
+        // Check auth state once
         const checkAuth = async () => {
-            const { data: { session } } = await supabase.auth.getSession();
-            setUser(session?.user ?? null);
-            setLoading(false);
+            try {
+                const { data: { session } } = await supabase.auth.getSession();
+                setUser(session?.user ?? null);
+            } catch (error) {
+                console.error('Auth check error:', error);
+            } finally {
+                setLoading(false);
+                isInitialized.current = true;
+            }
         };
+
         checkAuth();
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            setUser(session?.user ?? null);
+            // Only update if already initialized to avoid race condition
+            if (isInitialized.current) {
+                setUser(session?.user ?? null);
+            }
         });
 
         return () => {
@@ -53,43 +65,57 @@ export default function ChatWidget() {
     }, [isOpen]);
 
     // Fetch messages function
-    const fetchMessages = useCallback(async () => {
+    const fetchMessages = useCallback(async (showLoading = false) => {
         if (!user) return;
 
-        const { data } = await supabase
-            .from('chat_messages')
-            .select('*')
-            .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-            .order('created_at', { ascending: true });
+        if (showLoading) setMessagesLoading(true);
 
-        if (data && data.length > 0) {
-            const newMessages = data.map((msg: any) => ({
-                id: msg.id,
-                text: msg.message,
-                sender: msg.sender_id === user.id ? 'user' : 'admin',
-                created_at: msg.created_at
-            }));
+        try {
+            const { data, error } = await supabase
+                .from('chat_messages')
+                .select('*')
+                .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+                .order('created_at', { ascending: true });
 
-            // Check for new messages from admin (for unread count)
-            if (!isOpen && data.length > lastMessageCount) {
-                const newAdminMessages = data.slice(lastMessageCount).filter(
-                    (msg: any) => msg.sender_id !== user.id
-                );
-                if (newAdminMessages.length > 0) {
-                    setUnreadCount(prev => prev + newAdminMessages.length);
-                }
+            if (error) {
+                console.error('Error fetching messages:', error);
+                return;
             }
 
-            setMessages(newMessages as ChatMessage[]);
-            setLastMessageCount(data.length);
-        } else if (!data || data.length === 0) {
-            // Add welcome message if no messages
-            setMessages([{
-                id: 'welcome',
-                text: 'สวัสดีครับ มีอะไรให้เราช่วยไหมครับ?',
-                sender: 'admin',
-                created_at: new Date().toISOString()
-            }]);
+            if (data && data.length > 0) {
+                const newMessages = data.map((msg: any) => ({
+                    id: msg.id,
+                    text: msg.message,
+                    sender: msg.sender_id === user.id ? 'user' : 'admin',
+                    created_at: msg.created_at
+                }));
+
+                // Check for new messages from admin (for unread count)
+                if (!isOpen && data.length > lastMessageCount) {
+                    const newAdminMessages = data.slice(lastMessageCount).filter(
+                        (msg: any) => msg.sender_id !== user.id
+                    );
+                    if (newAdminMessages.length > 0) {
+                        setUnreadCount(prev => prev + newAdminMessages.length);
+                    }
+                }
+
+                setMessages(newMessages as ChatMessage[]);
+                setLastMessageCount(data.length);
+            } else {
+                // Add welcome message if no messages
+                setMessages([{
+                    id: 'welcome',
+                    text: 'สวัสดีครับ มีอะไรให้เราช่วยไหมครับ?',
+                    sender: 'admin',
+                    created_at: new Date().toISOString()
+                }]);
+                setLastMessageCount(0);
+            }
+        } catch (error) {
+            console.error('Error fetching messages:', error);
+        } finally {
+            if (showLoading) setMessagesLoading(false);
         }
     }, [user, isOpen, lastMessageCount]);
 
@@ -97,11 +123,12 @@ export default function ChatWidget() {
     useEffect(() => {
         if (!user) return;
 
-        fetchMessages();
+        // Initial fetch with loading indicator
+        fetchMessages(true);
 
-        // Polling for new messages
+        // Polling for new messages (without loading indicator)
         const intervalId = setInterval(() => {
-            fetchMessages();
+            fetchMessages(false);
         }, POLLING_INTERVAL);
 
         return () => {
@@ -149,7 +176,7 @@ export default function ChatWidget() {
 
     // Manual refresh
     const handleRefresh = () => {
-        fetchMessages();
+        fetchMessages(true);
     };
 
     return (
@@ -179,10 +206,11 @@ export default function ChatWidget() {
                             {user && (
                                 <button
                                     onClick={handleRefresh}
-                                    className="text-white/80 hover:text-white p-1"
+                                    disabled={messagesLoading}
+                                    className="text-white/80 hover:text-white p-1 disabled:opacity-50"
                                     title="รีเฟรช"
                                 >
-                                    <FaSync className="text-sm" />
+                                    <FaSync className={`text-sm ${messagesLoading ? 'animate-spin' : ''}`} />
                                 </button>
                             )}
                             <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white">
@@ -195,7 +223,7 @@ export default function ChatWidget() {
                     <div className="flex-1 overflow-y-auto p-4 space-y-4">
                         {loading ? (
                             <div className="flex justify-center items-center h-full text-gray-400">
-                                Loading...
+                                <FaSync className="animate-spin mr-2" /> กำลังโหลด...
                             </div>
                         ) : !user ? (
                             <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
@@ -207,6 +235,10 @@ export default function ChatWidget() {
                                 >
                                     เข้าสู่ระบบ
                                 </Link>
+                            </div>
+                        ) : messagesLoading && messages.length === 0 ? (
+                            <div className="flex justify-center items-center h-full text-gray-400">
+                                <FaSync className="animate-spin mr-2" /> กำลังโหลดข้อความ...
                             </div>
                         ) : (
                             <>

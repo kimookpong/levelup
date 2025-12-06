@@ -15,22 +15,49 @@ export default function Navbar() {
     const [scrolled, setScrolled] = useState(false);
 
     useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        // Function to fetch user role with retry
+        const fetchUserRole = async (userId: string, retryCount = 0): Promise<void> => {
+            const { data, error } = await supabase
+                .from('users')
+                .select('role')
+                .eq('id', userId)
+                .single();
+
+            if (error) {
+                console.error('Error fetching user role:', error);
+                // Retry up to 3 times with delay (in case of race condition with auth callback)
+                if (retryCount < 3) {
+                    console.log(`Retrying fetch user role... attempt ${retryCount + 1}`);
+                    setTimeout(() => fetchUserRole(userId, retryCount + 1), 500);
+                }
+            } else {
+                console.log('User role:', data?.role);
+                setIsAdmin(data?.role === 'admin');
+            }
+        };
+
+        // Check initial session
+        const checkInitialSession = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+                setUser(session.user);
+                await fetchUserRole(session.user.id);
+            }
+        };
+
+        checkInitialSession();
+
+        // Listen to auth changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            console.log('Auth event:', event);
             setUser(session?.user ?? null);
 
             if (session?.user) {
-                const { data, error } = await supabase
-                    .from('users')
-                    .select('*')
-                    .eq('id', session.user.id)
-                    .single();
-
-                if (error) {
-                    console.error('Error fetching user role:', error);
-                } else {
-                    console.log('User data:', data);
-                    setIsAdmin(data?.role === 'admin');
+                // Add delay for SIGNED_IN event to allow callback to complete upsert
+                if (event === 'SIGNED_IN') {
+                    await new Promise(resolve => setTimeout(resolve, 500));
                 }
+                await fetchUserRole(session.user.id);
             } else {
                 setIsAdmin(false);
             }

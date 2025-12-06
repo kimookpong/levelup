@@ -31,54 +31,111 @@ export default function AdminChat() {
     const [input, setInput] = useState('');
     const [adminId, setAdminId] = useState<string | null>(null);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [messagesLoading, setMessagesLoading] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const isInitialized = useRef(false);
 
     // Get Admin ID
     useEffect(() => {
         const getAdmin = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            setAdminId(user?.id || null);
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                setAdminId(user?.id || null);
+            } catch (error) {
+                console.error('Error getting admin:', error);
+            } finally {
+                isInitialized.current = true;
+            }
         };
         getAdmin();
     }, []);
 
     // Fetch conversations using RPC
-    const fetchConversations = useCallback(async () => {
+    const fetchConversations = useCallback(async (showLoading = false) => {
         if (!adminId) return;
 
-        const { data, error } = await supabase.rpc('get_chat_users');
-        if (error) {
+        if (showLoading) setLoading(true);
+
+        try {
+            const { data, error } = await supabase.rpc('get_chat_users');
+
+            if (error) {
+                console.error('Error fetching conversations:', error);
+                // Fallback: fetch from chat_messages directly
+                const { data: fallbackData } = await supabase
+                    .from('chat_messages')
+                    .select('sender_id, receiver_id, created_at')
+                    .order('created_at', { ascending: false });
+
+                if (fallbackData) {
+                    // Get unique user IDs (excluding admin)
+                    const userIds = new Set<string>();
+                    fallbackData.forEach((msg: any) => {
+                        if (msg.sender_id && msg.sender_id !== adminId) userIds.add(msg.sender_id);
+                        if (msg.receiver_id && msg.receiver_id !== adminId) userIds.add(msg.receiver_id);
+                    });
+
+                    // Fetch user profiles
+                    if (userIds.size > 0) {
+                        const { data: usersData } = await supabase
+                            .from('users')
+                            .select('id, full_name, email, avatar_url')
+                            .in('id', Array.from(userIds));
+
+                        if (usersData) {
+                            setConversations(usersData);
+                        }
+                    }
+                }
+            } else if (data) {
+                // Filter out the admin themselves if they appear in the list
+                const filtered = data.filter((u: any) => u.id !== adminId);
+                // Sort by last_message_at desc
+                filtered.sort((a: any, b: any) =>
+                    new Date(b.last_message_at || 0).getTime() - new Date(a.last_message_at || 0).getTime()
+                );
+                setConversations(filtered);
+            }
+        } catch (error) {
             console.error('Error fetching conversations:', error);
-        } else if (data) {
-            // Filter out the admin themselves if they appear in the list
-            const filtered = data.filter((u: any) => u.id !== adminId);
-            // Sort by last_message_at desc
-            filtered.sort((a: any, b: any) =>
-                new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
-            );
-            setConversations(filtered);
+        } finally {
+            if (showLoading) setLoading(false);
         }
     }, [adminId]);
 
     // Fetch messages for selected user
-    const fetchMessages = useCallback(async () => {
+    const fetchMessages = useCallback(async (showLoading = false) => {
         if (!selectedUser || !adminId) return;
 
-        const { data } = await supabase
-            .from('chat_messages')
-            .select('*')
-            .or(`sender_id.eq.${selectedUser.id},receiver_id.eq.${selectedUser.id}`)
-            .order('created_at', { ascending: true });
+        if (showLoading) setMessagesLoading(true);
 
-        if (data) {
-            setMessages(data.map((msg: any) => ({
-                id: msg.id,
-                text: msg.message,
-                sender_id: msg.sender_id,
-                receiver_id: msg.receiver_id,
-                created_at: msg.created_at,
-                sender_role: msg.sender_id === adminId ? 'admin' : 'user'
-            })));
+        try {
+            const { data, error } = await supabase
+                .from('chat_messages')
+                .select('*')
+                .or(`sender_id.eq.${selectedUser.id},receiver_id.eq.${selectedUser.id}`)
+                .order('created_at', { ascending: true });
+
+            if (error) {
+                console.error('Error fetching messages:', error);
+                return;
+            }
+
+            if (data) {
+                setMessages(data.map((msg: any) => ({
+                    id: msg.id,
+                    text: msg.message,
+                    sender_id: msg.sender_id,
+                    receiver_id: msg.receiver_id,
+                    created_at: msg.created_at,
+                    sender_role: msg.sender_id === adminId ? 'admin' : 'user'
+                })));
+            }
+        } catch (error) {
+            console.error('Error fetching messages:', error);
+        } finally {
+            if (showLoading) setMessagesLoading(false);
         }
     }, [selectedUser, adminId]);
 
@@ -86,11 +143,11 @@ export default function AdminChat() {
     useEffect(() => {
         if (!adminId) return;
 
-        fetchConversations();
+        fetchConversations(true);
 
-        // Polling for new conversations
+        // Polling for new conversations (without loading indicator)
         const intervalId = setInterval(() => {
-            fetchConversations();
+            fetchConversations(false);
         }, POLLING_INTERVAL);
 
         return () => {
@@ -102,11 +159,11 @@ export default function AdminChat() {
     useEffect(() => {
         if (!selectedUser || !adminId) return;
 
-        fetchMessages();
+        fetchMessages(true);
 
-        // Polling for new messages
+        // Polling for new messages (without loading indicator)
         const intervalId = setInterval(() => {
-            fetchMessages();
+            fetchMessages(false);
         }, POLLING_INTERVAL);
 
         return () => {
@@ -121,7 +178,7 @@ export default function AdminChat() {
     // Manual refresh function
     const handleRefresh = async () => {
         setIsRefreshing(true);
-        await Promise.all([fetchConversations(), fetchMessages()]);
+        await Promise.all([fetchConversations(false), fetchMessages(false)]);
         setIsRefreshing(false);
     };
 
@@ -141,14 +198,27 @@ export default function AdminChat() {
         }]);
         setInput('');
 
-        await supabase.from('chat_messages').insert({
-            message: messageText,
-            sender_id: adminId,
-            receiver_id: selectedUser.id
-        });
+        try {
+            const { error } = await supabase.from('chat_messages').insert({
+                message: messageText,
+                sender_id: adminId,
+                receiver_id: selectedUser.id
+            });
 
-        // Refresh conversations to update timestamp
-        fetchConversations();
+            if (error) {
+                console.error('Error sending message:', error);
+                // Remove optimistic message on error
+                setMessages(prev => prev.filter(m => m.id !== tempId));
+                alert('ส่งข้อความไม่สำเร็จ กรุณาลองใหม่');
+            } else {
+                // Refresh conversations to update timestamp
+                fetchConversations(false);
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+            setMessages(prev => prev.filter(m => m.id !== tempId));
+            alert('ส่งข้อความไม่สำเร็จ กรุณาลองใหม่');
+        }
     };
 
     return (
@@ -177,34 +247,44 @@ export default function AdminChat() {
                     </div>
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                    {conversations.map(user => (
-                        <button
-                            key={user.id}
-                            onClick={() => setSelectedUser(user)}
-                            className={`w-full p-4 flex items-center gap-3 hover:bg-white/5 transition-colors border-b border-white/5 ${selectedUser?.id === user.id ? 'bg-primary/10 border-primary/20' : ''}`}
-                        >
-                            <div className="relative w-10 h-10 rounded-full bg-gray-800 overflow-hidden flex-shrink-0">
-                                {user.avatar_url ? (
-                                    <Image src={user.avatar_url} alt={user.full_name} fill sizes="40px" className="object-cover" />
-                                ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                        <FaUser />
-                                    </div>
-                                )}
-                            </div>
-                            <div className="text-left overflow-hidden flex-1">
-                                <div className="flex justify-between items-center">
-                                    <h3 className="font-bold text-white truncate">{user.full_name || 'User'}</h3>
-                                    {user.last_message_at && (
-                                        <span className="text-[10px] text-gray-500">
-                                            {new Date(user.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                        </span>
+                    {loading ? (
+                        <div className="flex justify-center items-center h-32 text-gray-400">
+                            <FaSync className="animate-spin mr-2" /> กำลังโหลด...
+                        </div>
+                    ) : conversations.length === 0 ? (
+                        <div className="flex justify-center items-center h-32 text-gray-500 text-sm">
+                            ยังไม่มีแชท
+                        </div>
+                    ) : (
+                        conversations.map(user => (
+                            <button
+                                key={user.id}
+                                onClick={() => setSelectedUser(user)}
+                                className={`w-full p-4 flex items-center gap-3 hover:bg-white/5 transition-colors border-b border-white/5 ${selectedUser?.id === user.id ? 'bg-primary/10 border-primary/20' : ''}`}
+                            >
+                                <div className="relative w-10 h-10 rounded-full bg-gray-800 overflow-hidden flex-shrink-0">
+                                    {user.avatar_url ? (
+                                        <Image src={user.avatar_url} alt={user.full_name} fill sizes="40px" className="object-cover" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                            <FaUser />
+                                        </div>
                                     )}
                                 </div>
-                                <p className="text-xs text-gray-400 truncate">{user.email}</p>
-                            </div>
-                        </button>
-                    ))}
+                                <div className="text-left overflow-hidden flex-1">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="font-bold text-white truncate">{user.full_name || 'User'}</h3>
+                                        {user.last_message_at && (
+                                            <span className="text-[10px] text-gray-500">
+                                                {new Date(user.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                                </div>
+                            </button>
+                        ))
+                    )}
                 </div>
             </div>
 
@@ -231,21 +311,31 @@ export default function AdminChat() {
 
                         {/* Messages */}
                         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                            {messages.map((msg) => (
-                                <div
-                                    key={msg.id}
-                                    className={`flex ${msg.sender_role === 'admin' ? 'justify-end' : 'justify-start'}`}
-                                >
-                                    <div
-                                        className={`max-w-[70%] p-3 rounded-2xl text-sm ${msg.sender_role === 'admin'
-                                            ? 'bg-primary text-white rounded-br-none'
-                                            : 'bg-white/10 text-gray-200 rounded-bl-none'
-                                            }`}
-                                    >
-                                        {msg.text}
-                                    </div>
+                            {messagesLoading ? (
+                                <div className="flex justify-center items-center h-full text-gray-400">
+                                    <FaSync className="animate-spin mr-2" /> กำลังโหลดข้อความ...
                                 </div>
-                            ))}
+                            ) : messages.length === 0 ? (
+                                <div className="flex justify-center items-center h-full text-gray-500 text-sm">
+                                    ยังไม่มีข้อความ
+                                </div>
+                            ) : (
+                                messages.map((msg) => (
+                                    <div
+                                        key={msg.id}
+                                        className={`flex ${msg.sender_role === 'admin' ? 'justify-end' : 'justify-start'}`}
+                                    >
+                                        <div
+                                            className={`max-w-[70%] p-3 rounded-2xl text-sm ${msg.sender_role === 'admin'
+                                                ? 'bg-primary text-white rounded-br-none'
+                                                : 'bg-white/10 text-gray-200 rounded-bl-none'
+                                                }`}
+                                        >
+                                            {msg.text}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
                             <div ref={messagesEndRef} />
                         </div>
 

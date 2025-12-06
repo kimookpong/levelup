@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase/client';
-import { FaPlus, FaEdit, FaTrash, FaTimes, FaCheck } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaTimes, FaCheck, FaSync } from 'react-icons/fa';
 
 interface Game {
     id: string;
@@ -28,6 +28,37 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
         active: true
     });
     const [loading, setLoading] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
+
+    // Fetch games from database
+    const fetchGames = useCallback(async () => {
+        setRefreshing(true);
+        try {
+            const { data, error } = await supabase
+                .from('games')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            if (data) setGames(data);
+        } catch (error) {
+            console.error('Error fetching games:', error);
+        } finally {
+            setRefreshing(false);
+        }
+    }, []);
+
+    // Refresh session before operations
+    useEffect(() => {
+        // Listen for auth changes to ensure session is valid
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+            if (event === 'TOKEN_REFRESHED') {
+                console.log('Token refreshed');
+            }
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
 
     const resetForm = () => {
         setFormData({ name: '', slug: '', image_url: '', active: true });
@@ -54,17 +85,32 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
         resetForm();
     };
 
+    // Helper function to ensure session is valid before operations
+    const ensureSession = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+            throw new Error('กรุณาเข้าสู่ระบบใหม่');
+        }
+        return session;
+    };
+
     const handleToggleStatus = async (id: string, currentStatus: boolean) => {
         try {
+            await ensureSession();
+
             const { data, error } = await supabase
                 .from('games')
                 .update({ active: !currentStatus })
                 .eq('id', id)
                 .select();
 
+            console.log('Toggle result:', { data, error });
+
             if (error) throw error;
             if (!data || data.length === 0) {
-                throw new Error('ไม่สามารถบันทึกข้อมูลได้ (Permission Denied หรือไม่พบข้อมูล)');
+                // Refresh to get latest data
+                await fetchGames();
+                throw new Error('ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
             }
 
             setGames(games.map(g => g.id === id ? { ...g, active: !currentStatus } : g));
@@ -78,15 +124,21 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
         if (!confirm('คุณแน่ใจหรือไม่ที่จะลบเกมนี้?')) return;
 
         try {
+            await ensureSession();
+
             const { data, error } = await supabase
                 .from('games')
                 .delete()
                 .eq('id', id)
                 .select();
 
+            console.log('Delete result:', { data, error });
+
             if (error) throw error;
             if (!data || data.length === 0) {
-                throw new Error('ไม่สามารถลบข้อมูลได้ (Permission Denied หรือไม่พบข้อมูล)');
+                // Refresh to get latest data
+                await fetchGames();
+                throw new Error('ไม่สามารถลบข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
             }
 
             setGames(games.filter(g => g.id !== id));
@@ -101,6 +153,8 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
         setLoading(true);
 
         try {
+            await ensureSession();
+
             if (editingGame) {
                 // Update
                 const { data, error } = await supabase
@@ -110,9 +164,12 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                     .select()
                     .single();
 
+                console.log('Update result:', { data, error });
+
                 if (error) throw error;
                 if (!data) {
-                    throw new Error('ไม่สามารถบันทึกข้อมูลได้ (Permission Denied หรือไม่พบข้อมูล)');
+                    await fetchGames();
+                    throw new Error('ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
                 }
 
                 setGames(games.map(g => g.id === editingGame.id ? data : g));
@@ -124,9 +181,12 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                     .select()
                     .single();
 
+                console.log('Insert result:', { data, error });
+
                 if (error) throw error;
                 if (!data) {
-                    throw new Error('ไม่สามารถบันทึกข้อมูลได้ (Permission Denied)');
+                    await fetchGames();
+                    throw new Error('ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
                 }
 
                 setGames([data, ...games]);
@@ -151,13 +211,23 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                     <h1 className="text-4xl font-display font-bold text-white mb-2">จัดการเกม</h1>
                     <p className="text-gray-400">เพิ่ม แก้ไข หรือลบเกมออกจากระบบ</p>
                 </div>
-                <button
-                    onClick={() => handleOpenModal()}
-                    className="flex items-center gap-2 bg-primary hover:bg-red-600 text-white px-6 py-3 rounded-xl font-bold transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(255,0,85,0.4)]"
-                >
-                    <FaPlus />
-                    เพิ่มเกม
-                </button>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={fetchGames}
+                        disabled={refreshing}
+                        className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-4 py-3 rounded-xl font-bold transition-all disabled:opacity-50"
+                    >
+                        <FaSync className={refreshing ? 'animate-spin' : ''} />
+                        รีเฟรช
+                    </button>
+                    <button
+                        onClick={() => handleOpenModal()}
+                        className="flex items-center gap-2 bg-primary hover:bg-red-600 text-white px-6 py-3 rounded-xl font-bold transition-all transform hover:scale-105 shadow-[0_0_15px_rgba(255,0,85,0.4)]"
+                    >
+                        <FaPlus />
+                        เพิ่มเกม
+                    </button>
+                </div>
             </div>
 
             <div className="glass rounded-3xl overflow-hidden animate-fade-in-up shadow-2xl">

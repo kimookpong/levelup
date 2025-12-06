@@ -39,13 +39,30 @@ export async function GET(request: Request) {
             // Sync user to public table
             const user = data.user;
             if (user) {
-                await supabase.from('users').upsert({
-                    id: user.id,
-                    email: user.email,
-                    full_name: user.user_metadata.full_name,
-                    avatar_url: user.user_metadata.avatar_url,
-                    // role: 'user' // Default is 'user', let database handle it or existing value
-                });
+                // Check if user already exists
+                const { data: existingUser } = await supabase
+                    .from('users')
+                    .select('id, role')
+                    .eq('id', user.id)
+                    .single();
+
+                if (existingUser) {
+                    // User exists - only update profile info, keep existing role
+                    await supabase.from('users').update({
+                        email: user.email,
+                        full_name: user.user_metadata.full_name,
+                        avatar_url: user.user_metadata.avatar_url,
+                    }).eq('id', user.id);
+                } else {
+                    // New user - insert with default role
+                    await supabase.from('users').insert({
+                        id: user.id,
+                        email: user.email,
+                        full_name: user.user_metadata.full_name,
+                        avatar_url: user.user_metadata.avatar_url,
+                        role: 'user'
+                    });
+                }
             }
 
             return NextResponse.redirect(`${origin}${next}`);
