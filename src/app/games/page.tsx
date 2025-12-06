@@ -1,15 +1,13 @@
-import { createStaticClient } from '@/lib/supabase/server';
+import { createServerClient } from '@/lib/supabase/server';
 import GamesClient from '@/components/GamesClient';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-
-export const revalidate = 3600; // Revalidate every hour
 
 export default async function GamesPage() {
     let games = [];
 
     try {
-        const supabase = createStaticClient();
+        const supabase = await createServerClient();
         const { data } = await supabase
             .from('games')
             .select('*')

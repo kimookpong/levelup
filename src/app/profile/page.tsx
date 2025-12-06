@@ -3,9 +3,8 @@
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { FaHistory, FaGamepad, FaCoins, FaSignOutAlt } from 'react-icons/fa';
-import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { User } from '@supabase/supabase-js';
+import { useAuth } from '@/components/AuthProvider';
 import Image from 'next/image';
 
 // Mock Data
@@ -16,17 +15,7 @@ const HISTORY = [
 ];
 
 export default function ProfilePage() {
-    const [user, setUser] = useState<User | null>(null);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const getUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            setUser(user);
-            setLoading(false);
-        };
-        getUser();
-    }, []);
+    const { user, loading } = useAuth();
 
     if (loading) {
         return (

@@ -4,7 +4,7 @@ import HomeClient from '@/components/HomeClient';
 import { FaBolt, FaShieldAlt, FaHeadset, FaNewspaper, FaStar, FaCreditCard } from 'react-icons/fa';
 import Image from 'next/image';
 
-import { createStaticClient } from '@/lib/supabase/server';
+import { createServerClient } from '@/lib/supabase/server';
 
 const NEWS = [
     {
@@ -64,7 +64,7 @@ const PAYMENTS = [
 export default async function Home() {
     let games = [];
     try {
-        const supabase = createStaticClient();
+        const supabase = await createServerClient();
         const { data } = await supabase.from('games').select('*').eq('active', true);
         games = data || [];
     } catch (error) {

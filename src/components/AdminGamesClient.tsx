@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase/client';
 import { FaPlus, FaEdit, FaTrash, FaTimes, FaCheck, FaSync } from 'react-icons/fa';
@@ -46,18 +46,6 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
         } finally {
             setRefreshing(false);
         }
-    }, []);
-
-    // Refresh session before operations
-    useEffect(() => {
-        // Listen for auth changes to ensure session is valid
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-            if (event === 'TOKEN_REFRESHED') {
-                console.log('Token refreshed');
-            }
-        });
-
-        return () => subscription.unsubscribe();
     }, []);
 
     const resetForm = () => {

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { FaComments, FaPaperPlane, FaTimes, FaSync } from 'react-icons/fa';
 import { supabase } from '@/lib/supabase/client';
+import { useAuth } from '@/components/AuthProvider';
 import Link from 'next/link';
 
 interface ChatMessage {
@@ -15,48 +16,18 @@ interface ChatMessage {
 const POLLING_INTERVAL = 5000; // 5 seconds
 
 export default function ChatWidget() {
+    const { user, loading } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
-    const [user, setUser] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
     const [messagesLoading, setMessagesLoading] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [lastMessageCount, setLastMessageCount] = useState(0);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const isInitialized = useRef(false);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
-
-    useEffect(() => {
-        // Check auth state once
-        const checkAuth = async () => {
-            try {
-                const { data: { session } } = await supabase.auth.getSession();
-                setUser(session?.user ?? null);
-            } catch (error) {
-                console.error('Auth check error:', error);
-            } finally {
-                setLoading(false);
-                isInitialized.current = true;
-            }
-        };
-
-        checkAuth();
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            // Only update if already initialized to avoid race condition
-            if (isInitialized.current) {
-                setUser(session?.user ?? null);
-            }
-        });
-
-        return () => {
-            subscription.unsubscribe();
-        };
-    }, []);
 
     useEffect(() => {
         if (isOpen) {

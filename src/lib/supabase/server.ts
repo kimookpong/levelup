@@ -1,18 +1,5 @@
 import { createServerClient as createSupabaseServerClient } from '@supabase/ssr';
-import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
-
-// Static Supabase client (use in Server Components for public data, enables SSG)
-export function createStaticClient() {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-        throw new Error('Missing Supabase environment variables. Please check your .env.local file.');
-    }
-
-    return createClient(supabaseUrl, supabaseAnonKey);
-}
 
 // Server-side Supabase client (use in Server Components, API routes, Server Actions)
 export async function createServerClient() {
