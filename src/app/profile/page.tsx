@@ -1,4 +1,5 @@
 'use client';
+import React from 'react';
 
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -7,27 +8,46 @@ import { useAuth } from '@/components/AuthProvider';
 import Image from 'next/image';
 import { signOut } from 'next-auth/react';
 
-// Mock Data
-const HISTORY = [
-    { id: 1, game: 'ROV', package: '1,200 Coupons', price: 350, status: 'Success', date: '2023-10-25 14:30' },
-    { id: 2, game: 'PUBG Mobile', package: '60 UC', price: 29, status: 'Pending', date: '2023-10-26 09:15' },
-    { id: 3, game: 'Free Fire', package: '100 Diamonds', price: 35, status: 'Failed', date: '2023-10-24 18:00' },
-];
+// Mock Data (Removed)
 
 export default function ProfilePage() {
-    const { user, loading } = useAuth();
+    const { user, loading: authLoading } = useAuth();
+    const [transactions, setTransactions] = React.useState<any[]>([]);
+    const [loading, setLoading] = React.useState(true);
 
-    if (loading) {
+    const avatarUrl = user?.image;
+    const fullName = user?.name || 'User';
+    const email = user?.email || 'No email provided';
+
+    React.useEffect(() => {
+        if (!user) return;
+
+        async function fetchHistory() {
+            setLoading(true);
+            try {
+                const { getUserTransactions } = await import('@/actions/transactions');
+                const { data } = await getUserTransactions();
+                if (data) setTransactions(data);
+            } catch (error) {
+                console.error("Failed to fetch history:", error);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        fetchHistory();
+    }, [user]);
+
+    const totalSpent = transactions.reduce((acc, curr) => acc + (curr.status === 'COMPLETED' ? curr.price : 0), 0);
+    const successCount = transactions.filter(t => t.status === 'COMPLETED').length;
+
+    if (authLoading || (loading && !transactions.length)) {
         return (
             <div className="min-h-screen bg-black text-white flex items-center justify-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
             </div>
         );
     }
-
-    const avatarUrl = user?.image;
-    const fullName = user?.name || 'User';
-    const email = user?.email || 'No email provided';
 
     return (
         <div className="min-h-screen bg-black text-white">
@@ -67,14 +87,14 @@ export default function ProfilePage() {
                     <div className="bg-card-bg border border-white/10 p-6 rounded-2xl flex items-center gap-4">
                         <div className="p-4 bg-primary/20 text-primary rounded-xl text-2xl"><FaGamepad /></div>
                         <div>
-                            <div className="text-2xl font-bold">12</div>
-                            <div className="text-sm text-gray-400">Top-ups</div>
+                            <div className="text-2xl font-bold">{successCount}</div>
+                            <div className="text-sm text-gray-400">Total Top-ups</div>
                         </div>
                     </div>
                     <div className="bg-card-bg border border-white/10 p-6 rounded-2xl flex items-center gap-4">
                         <div className="p-4 bg-secondary/20 text-secondary rounded-xl text-2xl"><FaCoins /></div>
                         <div>
-                            <div className="text-2xl font-bold">4,500 ฿</div>
+                            <div className="text-2xl font-bold">{totalSpent.toLocaleString()} ฿</div>
                             <div className="text-sm text-gray-400">Total Spent</div>
                         </div>
                     </div>
@@ -85,35 +105,47 @@ export default function ProfilePage() {
                 </h2>
 
                 <div className="bg-card-bg border border-white/10 rounded-2xl overflow-hidden">
-                    <table className="w-full text-left">
-                        <thead className="bg-white/5 border-b border-white/10">
-                            <tr>
-                                <th className="p-4 font-bold">Game</th>
-                                <th className="p-4 font-bold">Package</th>
-                                <th className="p-4 font-bold">Price</th>
-                                <th className="p-4 font-bold">Date</th>
-                                <th className="p-4 font-bold">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {HISTORY.map((item) => (
-                                <tr key={item.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                                    <td className="p-4">{item.game}</td>
-                                    <td className="p-4">{item.package}</td>
-                                    <td className="p-4">{item.price} ฿</td>
-                                    <td className="p-4 text-gray-400">{item.date}</td>
-                                    <td className="p-4">
-                                        <span className={`px-2 py-1 rounded text-xs font-bold 
-                      ${item.status === 'Success' ? 'bg-green-500/20 text-green-500' :
-                                                item.status === 'Pending' ? 'bg-yellow-500/20 text-yellow-500' :
-                                                    'bg-red-500/20 text-red-500'}`}>
-                                            {item.status}
-                                        </span>
-                                    </td>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead className="bg-white/5 border-b border-white/10">
+                                <tr>
+                                    <th className="p-4 font-bold whitespace-nowrap">Game</th>
+                                    <th className="p-4 font-bold whitespace-nowrap">Package</th>
+                                    <th className="p-4 font-bold whitespace-nowrap">Price</th>
+                                    <th className="p-4 font-bold whitespace-nowrap">Date</th>
+                                    <th className="p-4 font-bold whitespace-nowrap">Status</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {transactions.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="p-8 text-center text-gray-500">
+                                            No transactions found.
+                                        </td>
+                                    </tr>
+                                ) : (
+                                    transactions.map((item) => (
+                                        <tr key={item.id} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                                            <td className="p-4 whitespace-nowrap">{item.game.name}</td>
+                                            <td className="p-4 whitespace-nowrap">{item.package.name}</td>
+                                            <td className="p-4 font-mono whitespace-nowrap">{item.price.toLocaleString()} {item.currency}</td>
+                                            <td className="p-4 text-gray-400 whitespace-nowrap">
+                                                {new Date(item.createdAt).toLocaleString('th-TH')}
+                                            </td>
+                                            <td className="p-4 whitespace-nowrap">
+                                                <span className={`px-2 py-1 rounded text-xs font-bold 
+                          ${item.status === 'COMPLETED' ? 'bg-green-500/20 text-green-500' :
+                                                        item.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-500' :
+                                                            'bg-red-500/20 text-red-500'}`}>
+                                                    {item.status}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </main>
 

@@ -143,3 +143,23 @@ export async function getTransactions() {
         return { error: 'Failed to fetch transactions' };
     }
 }
+
+export async function getUserTransactions() {
+    const session = await auth();
+    if (!session?.user?.id) return { data: [] };
+
+    try {
+        const transactions = await prisma.transaction.findMany({
+            where: { userId: session.user.id },
+            include: {
+                game: { select: { name: true } },
+                package: { select: { name: true } },
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        return { data: transactions };
+    } catch (error) {
+        console.error('Fetch user transactions error:', error);
+        return { error: 'Failed to fetch history' };
+    }
+}

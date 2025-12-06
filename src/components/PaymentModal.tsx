@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Script from 'next/script';
-import { FaTimes, FaCreditCard, FaLock, FaShieldAlt, FaQrcode, FaCheck } from 'react-icons/fa';
-import { createTransaction, updateTransactionStatus } from '@/actions/transactions';
+import { FaTimes, FaCreditCard, FaLock, FaShieldAlt, FaQrcode, FaCheck, FaSpinner } from 'react-icons/fa';
+import { createTransaction } from '@/actions/transactions';
+import { processCreditCardPayment, createPromptPayCharge, checkChargeStatus } from '@/actions/payments';
 import Image from 'next/image';
 
 interface PaymentModalProps {
@@ -25,63 +26,88 @@ export default function PaymentModal({ isOpen, onClose, pkg, transactionId, amou
     const [omiseLoaded, setOmiseLoaded] = useState(false);
     const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'qr_code'>('credit_card');
 
+    // QR State
+    const [qrImage, setQrImage] = useState<string | null>(null);
+    const [qrChargeId, setQrChargeId] = useState<string | null>(null);
+    const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+    const pollInterval = useRef<NodeJS.Timeout>(null);
+
     useEffect(() => {
         if (isOpen && omiseLoaded && window.OmiseCard) {
             window.OmiseCard.configure({
-                publicKey: process.env.NEXT_PUBLIC_OMISE_PUBLIC_KEY || 'pkey_test_5wvisbxphp1636s887z', // Fallback for dev if env missing
+                publicKey: process.env.NEXT_PUBLIC_OMISE_PUBLIC_KEY || 'pkey_test_5wvisbxphp1636s887z',
             });
         }
+
+        // Cleanup polling on close or unmount
+        return () => {
+            if (pollInterval.current) clearInterval(pollInterval.current);
+        };
     }, [isOpen, omiseLoaded]);
 
-    if (!isOpen) return null;
+    // Reset state when modal opens/closes
+    useEffect(() => {
+        if (!isOpen) {
+            setQrImage(null);
+            setQrChargeId(null);
+            setIsCheckingStatus(false);
+            if (pollInterval.current) clearInterval(pollInterval.current);
+        }
+    }, [isOpen]);
 
     const finalAmount = amount || (pkg ? pkg.price : 0);
 
-    const handleQRPayment = async () => {
-        setLoading(true);
-        // Simulate QR Payment Verification (e.g. upload slip or check mock promptpay)
-        setTimeout(async () => {
-            try {
-                if (transactionId) {
-                    const res = await updateTransactionStatus(transactionId, 'COMPLETED', 'qr_' + Date.now());
-                    if (res.data) {
-                        alert('ชำระเงินผ่าน QR Code สำเร็จ!');
-                        onClose();
-                    } else {
-                        alert('เกิดข้อผิดพลาดในการอัปเดตสถานะ: ' + res.error);
-                    }
-                } else {
-                    // Fallback creation
-                    const res = await createTransaction({
-                        gameId: pkg.game_id,
-                        packageId: pkg.id,
-                        price: pkg.price,
-                        playerId: 'UNKNOWN',
-                        paymentId: 'qr_' + Date.now()
-                    });
+    const startPolling = (chargeId: string) => {
+        setIsCheckingStatus(true);
+        if (pollInterval.current) clearInterval(pollInterval.current);
 
-                    if (res.data) {
-                        alert('ชำระเงินสำเร็จ! (Demo Mode)');
-                        onClose();
-                    } else {
-                        alert('เกิดข้อผิดพลาดในการบันทึกรายการ: ' + res.error);
-                    }
-                }
-            } catch (err) {
-                console.error(err);
-                alert('เกิดข้อผิดพลาด');
-            } finally {
-                setLoading(false);
+        pollInterval.current = setInterval(async () => {
+            const res = await checkChargeStatus(chargeId);
+            // @ts-ignore
+            if (res.data?.status === 'successful') {
+                if (pollInterval.current) clearInterval(pollInterval.current);
+                setIsCheckingStatus(false);
+                alert('ชำระเงินสำเร็จ!');
+                onClose();
+                // @ts-ignore
+            } else if (res.data?.status === 'failed') {
+                if (pollInterval.current) clearInterval(pollInterval.current);
+                setIsCheckingStatus(false);
+                alert('การชำระเงินล้มเหลว');
             }
-        }, 2000);
-    }
+        }, 5000); // Poll every 5 seconds
+    };
 
-    const handlePayment = () => {
-        if (paymentMethod === 'qr_code') {
-            handleQRPayment();
+    const handleGenerateQR = async () => {
+        if (!transactionId) {
+            alert('ไม่พบข้อมูลธุรกรรม (Transaction ID missing)');
             return;
         }
 
+        setLoading(true);
+        try {
+            const res = await createPromptPayCharge(transactionId);
+            // @ts-ignore
+            if (res.data) {
+                // @ts-ignore
+                setQrImage(res.data.qrImage);
+                // @ts-ignore
+                const chargeId = res.data.chargeId;
+                setQrChargeId(chargeId);
+                startPolling(chargeId);
+            } else {
+                // @ts-ignore
+                alert('สร้าง QR Code ไม่สำเร็จ: ' + res.error);
+            }
+        } catch (error) {
+            console.error(error);
+            alert('เกิดข้อผิดพลาดในการสร้าง QR Code');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCreditCardPayment = () => {
         if (!omiseLoaded) {
             alert('ระบบชำระเงินยังไม่พร้อม กรุณารอสักครู่');
             return;
@@ -94,34 +120,20 @@ export default function PaymentModal({ isOpen, onClose, pkg, transactionId, amou
             onCreateTokenSuccess: async (nonce: string) => {
                 setLoading(true);
                 try {
-                    // If we have an existing transaction, we update it.
-                    // Otherwise we create one (Legacy behavior / Fallback).
-
                     if (transactionId) {
-                        const res = await updateTransactionStatus(transactionId, 'COMPLETED', 'tok_' + nonce);
-                        if (res.data) {
+                        const res = await processCreditCardPayment(transactionId, nonce);
+                        // @ts-ignore
+                        if (res.data?.success) {
                             alert('ชำระเงินสำเร็จ!');
                             onClose();
                         } else {
-                            alert('เกิดข้อผิดพลาดในการอัปเดตสถานะ: ' + res.error);
+                            // @ts-ignore
+                            alert('ชำระเงินไม่สำเร็จ: ' + res.error);
                         }
                     } else {
-                        const res = await createTransaction({
-                            gameId: pkg.game_id,
-                            packageId: pkg.id,
-                            price: pkg.price,
-                            playerId: 'UNKNOWN', // Fallback
-                            paymentId: 'tok_' + nonce
-                        });
-
-                        if (res.data) {
-                            alert('ชำระเงินสำเร็จ! (Demo Mode)');
-                            onClose();
-                        } else {
-                            alert('เกิดข้อผิดพลาดในการบันทึกรายการ: ' + res.error);
-                        }
+                        // Handle case where transactionId is missing (create one first? logic in page.tsx usually ensures it exists)
+                        alert('Transaction ID not found. Please try again.');
                     }
-
                 } catch (err) {
                     console.error(err);
                     alert('เกิดข้อผิดพลาด');
@@ -134,6 +146,11 @@ export default function PaymentModal({ isOpen, onClose, pkg, transactionId, amou
             },
         });
     };
+
+    // If switched to QR, we might want to auto generate?
+    // Let's require a click to generate for now to be explicit.
+
+    if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
@@ -161,10 +178,10 @@ export default function PaymentModal({ isOpen, onClose, pkg, transactionId, amou
                     {/* Method Selector */}
                     <div className="grid grid-cols-2 gap-4 p-1 bg-black/40 rounded-xl">
                         <button
-                            onClick={() => setPaymentMethod('credit_card')}
+                            onClick={() => { setPaymentMethod('credit_card'); setQrImage(null); }}
                             className={`flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${paymentMethod === 'credit_card'
-                                    ? 'bg-emerald-500 text-white shadow-lg'
-                                    : 'text-gray-400 hover:text-white'
+                                ? 'bg-emerald-500 text-white shadow-lg'
+                                : 'text-gray-400 hover:text-white'
                                 }`}
                         >
                             <FaCreditCard /> บัตรเครดิต
@@ -172,8 +189,8 @@ export default function PaymentModal({ isOpen, onClose, pkg, transactionId, amou
                         <button
                             onClick={() => setPaymentMethod('qr_code')}
                             className={`flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all ${paymentMethod === 'qr_code'
-                                    ? 'bg-emerald-500 text-white shadow-lg'
-                                    : 'text-gray-400 hover:text-white'
+                                ? 'bg-emerald-500 text-white shadow-lg'
+                                : 'text-gray-400 hover:text-white'
                                 }`}
                         >
                             <FaQrcode /> QR Code
@@ -183,23 +200,37 @@ export default function PaymentModal({ isOpen, onClose, pkg, transactionId, amou
                     {/* Content Based on Method */}
                     {paymentMethod === 'qr_code' ? (
                         <div className="text-center animate-fade-in">
-                            <div className="bg-white p-4 rounded-xl inline-block mb-4">
-                                {/* Mock QR Code - In real app use a generator lib */}
-                                <Image
-                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=PromptPay-${finalAmount}`}
-                                    alt="Payment QR"
-                                    width={200}
-                                    height={200}
-                                />
-                            </div>
-                            <p className="text-white font-bold text-lg mb-2">สแกนเพื่อจ่ายเงิน</p>
-                            <p className="text-emerald-400 text-xl font-bold mb-4">{finalAmount.toLocaleString()} THB</p>
-                            <p className="text-xs text-gray-400">กรุณาสแกน QR Code ผ่านแอปธนาคารของคุณ<br />เพื่อชำระเงิน (ระบบทดสอบ: กดปุ่มด้านล่างได้เลย)</p>
+                            {qrImage ? (
+                                <div className="space-y-4">
+                                    <div className="bg-white p-4 rounded-xl inline-block">
+                                        <Image
+                                            src={qrImage}
+                                            alt="PromptPay QR"
+                                            width={200}
+                                            height={200}
+                                            unoptimized // External URL
+                                        />
+                                    </div>
+                                    <p className="text-white font-bold text-lg">สแกนเพื่อจ่ายเงิน</p>
+                                    <p className="text-emerald-400 text-xl font-bold">{finalAmount.toLocaleString()} THB</p>
+
+                                    <div className="flex items-center justify-center gap-2 text-yellow-400 text-sm animate-pulse">
+                                        <FaSpinner className="animate-spin" />
+                                        <span>กำลังตรวจสอบสถานะการชำระเงิน...</span>
+                                    </div>
+                                    <p className="text-xs text-gray-400">ระบบจะตรวจสอบยอดเงินอัตโนมัติ</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="bg-black/20 rounded-2xl p-6 border border-white/5 flex flex-col items-center justify-center gap-4">
+                                        <FaQrcode className="text-5xl text-gray-600" />
+                                        <p className="text-gray-400 text-sm">กดปุ่มด้านล่างเพื่อสร้าง QR Code</p>
+                                    </div>
+                                    <p className="text-emerald-400 font-bold text-xl">{finalAmount.toLocaleString()} THB</p>
+                                </div>
+                            )}
                         </div>
                     ) : (
-                        /* Package Info (Only show here for card, or both? Let's show both but design differs slightly) */
-                        /* Actually package info is good to see always, let's move it out of 'method specific' area or duplicate it? */
-                        /* The mock above put QR in center. Let's keep Package Info uniform. */
                         <div className="bg-black/20 rounded-2xl p-4 border border-white/5 flex justify-between items-center animate-fade-in">
                             <div>
                                 <p className="text-sm text-gray-400">แพ็กเกจที่เลือก</p>
@@ -220,24 +251,40 @@ export default function PaymentModal({ isOpen, onClose, pkg, transactionId, amou
                         <span>Secured by Omise Payment Gateway</span>
                     </div>
 
-                    <button
-                        onClick={handlePayment}
-                        disabled={(!omiseLoaded && paymentMethod === 'credit_card') || loading}
-                        className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                        {loading ? (
-                            <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
-                        ) : (
-                            <>
-                                {paymentMethod === 'credit_card' ? <FaShieldAlt /> : <FaCheck />}
-                                {paymentMethod === 'credit_card' ? 'ชำระเงินด้วยบัตรเครดิต' : 'ยืนยันการชำระเงิน'}
-                            </>
-                        )}
-                    </button>
-
+                    {paymentMethod === 'credit_card' ? (
+                        <button
+                            onClick={handleCreditCardPayment}
+                            disabled={!omiseLoaded || loading}
+                            className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                            {loading ? (
+                                <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
+                            ) : (
+                                <>
+                                    <FaShieldAlt /> ชำระเงินด้วยบัตรเครดิต
+                                </>
+                            )}
+                        </button>
+                    ) : (
+                        !qrImage && (
+                            <button
+                                onClick={handleGenerateQR}
+                                disabled={loading}
+                                className="w-full py-4 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            >
+                                {loading ? (
+                                    <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
+                                ) : (
+                                    <>
+                                        <FaQrcode /> สร้าง QR Code
+                                    </>
+                                )}
+                            </button>
+                        )
+                    )}
 
                     <p className="text-center text-gray-600 text-xs">
-                        รองรับ Visa, Mastercard, JCB
+                        รองรับ Visa, Mastercard, JCB และ PromptPay
                     </p>
                 </div>
             </div>
