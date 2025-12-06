@@ -126,3 +126,20 @@ export async function updateTransactionStatus(transactionId: string, status: str
         return { error: 'Failed to update transaction' };
     }
 }
+
+export async function getTransactions() {
+    try {
+        const transactions = await prisma.transaction.findMany({
+            include: {
+                user: { select: { name: true, email: true } },
+                game: { select: { name: true } },
+                package: { select: { name: true } },
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        return { data: transactions };
+    } catch (error) {
+        console.error('Fetch transactions error:', error);
+        return { error: 'Failed to fetch transactions' };
+    }
+}

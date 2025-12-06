@@ -17,7 +17,7 @@ interface Promotion {
     discount_value: number;
     usage_limit?: number | null;
     usage_count: number;
-    expires_at?: string | null; // Received as string from JSON serialization usually
+    expires_at?: Date | null;
     createdAt: Date;
     updatedAt: Date;
 }
