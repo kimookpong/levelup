@@ -79,7 +79,7 @@ export async function processCreditCardPayment(transactionId: string, token: str
     }
 }
 
-export async function createPromptPayCharge(transactionId: string) {
+export async function createSourceCharge(transactionId: string, sourceType: string, sourceOptions?: any) {
     try {
         const transaction = await prisma.transaction.findUnique({
             where: { id: transactionId }
@@ -89,44 +89,64 @@ export async function createPromptPayCharge(transactionId: string) {
 
         const amount = Math.round(transaction.price * 100);
 
+        const sourceConfig: any = { type: sourceType };
+        if (sourceOptions) {
+            Object.assign(sourceConfig, sourceOptions);
+        }
+
         return new Promise((resolve, reject) => {
             omise.charges.create({
                 'amount': amount,
                 'currency': transaction.currency.toLowerCase(),
-                'source': { 'type': 'promptpay' },
+                'source': sourceConfig,
+                'return_uri': `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/profile?payment_success=true&transaction_id=${transactionId}`, // Redirect back to profile
                 'metadata': {
                     'transaction_id': transactionId
                 }
             }, async (err: any, charge: any) => {
                 if (err) {
                     console.error('Omise Source Error:', err);
-                    resolve({ error: err.message || 'Failed to generate QR' });
+                    resolve({ error: err.message || 'Failed to create charge' });
                     return;
                 }
 
-                // For PromptPay, status is 'pending'. We need the qr image.
-                if (charge.source && charge.source.scannable_code) {
-                    // Update transaction with charge ID to track it
-                    await prisma.transaction.update({
-                        where: { id: transactionId },
-                        data: { paymentId: charge.id }
-                    });
+                // Update transaction with paymentId
+                await prisma.transaction.update({
+                    where: { id: transactionId },
+                    data: { paymentId: charge.id }
+                });
 
+                // Handle Response Types
+                // 1. Image (QR Code like PromptPay)
+                if (charge.source && charge.source.scannable_code) {
                     resolve({
                         data: {
+                            type: 'qr',
                             chargeId: charge.id,
                             qrImage: charge.source.scannable_code.image.download_uri,
                             qrText: charge.source.scannable_code.payload
                         }
                     });
-                } else {
-                    resolve({ error: 'Could not generate QR code' });
+                }
+                // 2. Redirect (TrueMoney, Mobile Banking, etc.)
+                else if (charge.authorize_uri) {
+                    resolve({
+                        data: {
+                            type: 'redirect',
+                            chargeId: charge.id,
+                            authorizeUri: charge.authorize_uri
+                        }
+                    });
+                }
+                // 3. Fallback / Success immediately (Rare for sources usually)
+                else {
+                    resolve({ data: { type: 'unknown', chargeId: charge.id, status: charge.status } });
                 }
             });
         });
 
     } catch (error) {
-        console.error('QR Gen error:', error);
+        console.error('Source Charge error:', error);
         return { error: 'Internal server error' };
     }
 }
