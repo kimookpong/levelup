@@ -75,13 +75,12 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
 
     const handleToggleStatus = async (id: string, currentStatus: boolean) => {
         try {
-            const { data, error } = await supabase
+            const { error } = await supabase
                 .from('games')
                 .update({ active: !currentStatus })
-                .eq('id', id)
-                .select();
+                .eq('id', id);
 
-            console.log('Toggle result:', { data, error });
+            console.log('Toggle result:', { error });
 
             if (error) {
                 console.error('Toggle error details:', error);
@@ -127,13 +126,12 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
 
             if (editingGame) {
                 // Update
-                const { data, error } = await supabase
+                const { error } = await supabase
                     .from('games')
                     .update(formData)
-                    .eq('id', editingGame.id)
-                    .select();
+                    .eq('id', editingGame.id);
 
-                console.log('Update result:', { data, error });
+                console.log('Update result:', { error });
 
                 if (error) {
                     console.error('Update error details:', error);
@@ -141,12 +139,11 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                 }
             } else {
                 // Insert
-                const { data, error } = await supabase
+                const { error } = await supabase
                     .from('games')
-                    .insert([formData])
-                    .select();
+                    .insert([formData]);
 
-                console.log('Insert result:', { data, error });
+                console.log('Insert result:', { error });
 
                 if (error) {
                     console.error('Insert error details:', error);
