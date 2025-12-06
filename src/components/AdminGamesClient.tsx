@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabase/client';
-import { FaPlus, FaEdit, FaTrash, FaTimes, FaCheck, FaSync } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaTimes, FaCheck, FaSync, FaImage } from 'react-icons/fa';
 
 interface Game {
     id: string;
@@ -29,6 +29,8 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
     });
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [imageError, setImageError] = useState(false);
+    const [imageLoading, setImageLoading] = useState(false);
 
     // Fetch games from database
     const fetchGames = useCallback(async () => {
@@ -51,6 +53,8 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
     const resetForm = () => {
         setFormData({ name: '', slug: '', image_url: '', active: true });
         setEditingGame(null);
+        setImageError(false);
+        setImageLoading(false);
     };
 
     const handleOpenModal = (game?: Game) => {
@@ -295,25 +299,43 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                             </div>
                             <div>
                                 <label className="block text-gray-400 text-sm font-bold mb-2">รูปภาพ URL</label>
-                                {(formData.image_url.startsWith('http') || formData.image_url.startsWith('/')) && (
-                                    <div className="mb-4 relative aspect-[2/3] h-[100px] rounded-xl overflow-hidden border border-white/10 bg-black/50">
-                                        <Image
-                                            src={formData.image_url}
-                                            alt="Preview"
-                                            fill
-                                            sizes="100px"
-                                            className="object-cover"
-                                        />
+                                {formData.image_url && (formData.image_url.startsWith('http') || formData.image_url.startsWith('/')) && (
+                                    <div className="mb-4 relative h-[100px] w-[70px] rounded-xl overflow-hidden border border-white/10 bg-black/50">
+                                        {imageLoading && (
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <FaSync className="animate-spin text-gray-500" />
+                                            </div>
+                                        )}
+                                        {imageError ? (
+                                            <div className="absolute inset-0 flex items-center justify-center text-red-500">
+                                                <FaImage size={24} />
+                                            </div>
+                                        ) : (
+                                            <img
+                                                src={formData.image_url}
+                                                alt="Preview"
+                                                className="w-full h-full object-cover"
+                                                onLoad={() => { setImageLoading(false); setImageError(false); }}
+                                                onError={() => { setImageLoading(false); setImageError(true); }}
+                                            />
+                                        )}
                                     </div>
                                 )}
                                 <input
                                     type="text"
                                     value={formData.image_url}
-                                    onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                                    onChange={(e) => {
+                                        setFormData({ ...formData, image_url: e.target.value });
+                                        setImageError(false);
+                                        setImageLoading(true);
+                                    }}
                                     className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary"
+                                    placeholder="https://example.com/image.jpg"
                                     required
                                 />
-
+                                {imageError && (
+                                    <p className="text-red-500 text-xs mt-1">ไม่สามารถโหลดรูปภาพได้ กรุณาตรวจสอบ URL</p>
+                                )}
                             </div>
 
                             <div className="pt-4 flex gap-3">
