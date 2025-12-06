@@ -75,10 +75,22 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
 
     // Helper function to ensure session is valid before operations
     const ensureSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-            throw new Error('กรุณาเข้าสู่ระบบใหม่');
+        // Try to refresh session first
+        const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+
+        if (refreshError) {
+            console.error('Session refresh error:', refreshError);
         }
+
+        // Fallback to getSession if refresh fails
+        if (!session) {
+            const { data: { session: currentSession } } = await supabase.auth.getSession();
+            if (!currentSession) {
+                throw new Error('กรุณาเข้าสู่ระบบใหม่');
+            }
+            return currentSession;
+        }
+
         return session;
     };
 
@@ -94,14 +106,13 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
 
             console.log('Toggle result:', { data, error });
 
-            if (error) throw error;
-            if (!data || data.length === 0) {
-                // Refresh to get latest data
-                await fetchGames();
-                throw new Error('ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
+            if (error) {
+                console.error('Toggle error details:', error);
+                throw error;
             }
 
-            setGames(games.map(g => g.id === id ? { ...g, active: !currentStatus } : g));
+            // Always fetch fresh data after update to ensure consistency
+            await fetchGames();
         } catch (error: any) {
             console.error('Error toggling status:', error);
             alert(`เกิดข้อผิดพลาดในการเปลี่ยนสถานะ: ${error.message || error}`);
@@ -114,22 +125,20 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
         try {
             await ensureSession();
 
-            const { data, error } = await supabase
+            const { error } = await supabase
                 .from('games')
                 .delete()
-                .eq('id', id)
-                .select();
+                .eq('id', id);
 
-            console.log('Delete result:', { data, error });
+            console.log('Delete result:', { error });
 
-            if (error) throw error;
-            if (!data || data.length === 0) {
-                // Refresh to get latest data
-                await fetchGames();
-                throw new Error('ไม่สามารถลบข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
+            if (error) {
+                console.error('Delete error details:', error);
+                throw error;
             }
 
-            setGames(games.filter(g => g.id !== id));
+            // Always fetch fresh data after delete
+            await fetchGames();
         } catch (error: any) {
             console.error('Error deleting game:', error);
             alert(`เกิดข้อผิดพลาดในการลบเกม: ${error.message || error}`);
@@ -145,47 +154,41 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
 
             if (editingGame) {
                 // Update
-                const { data, error } = await supabase
+                const { error } = await supabase
                     .from('games')
                     .update(formData)
-                    .eq('id', editingGame.id)
-                    .select()
-                    .single();
+                    .eq('id', editingGame.id);
 
-                console.log('Update result:', { data, error });
+                console.log('Update result:', { error });
 
-                if (error) throw error;
-                if (!data) {
-                    await fetchGames();
-                    throw new Error('ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
+                if (error) {
+                    console.error('Update error details:', error);
+                    throw error;
                 }
-
-                setGames(games.map(g => g.id === editingGame.id ? data : g));
             } else {
                 // Insert
-                const { data, error } = await supabase
+                const { error } = await supabase
                     .from('games')
-                    .insert([formData])
-                    .select()
-                    .single();
+                    .insert([formData]);
 
-                console.log('Insert result:', { data, error });
+                console.log('Insert result:', { error });
 
-                if (error) throw error;
-                if (!data) {
-                    await fetchGames();
-                    throw new Error('ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
+                if (error) {
+                    console.error('Insert error details:', error);
+                    throw error;
                 }
-
-                setGames([data, ...games]);
             }
-            handleCloseModal();
+
+            // Always fetch fresh data after save
+            await fetchGames();
+            setIsModalOpen(false);
+            resetForm();
         } catch (error: any) {
             console.error('Error saving game:', error);
             if (error.code === '23505') {
                 alert('ชื่อ Slug ซ้ำ! กรุณาใช้ชื่ออื่น');
             } else {
-                alert(`เกิดข้อผิดพลาดในการบันทึกข้อมูล: ${error.message || error.details || error}`);
+                alert(`เกิดข้อผิดพลาดในการบันทึก: ${error.message || error}`);
             }
         } finally {
             setLoading(false);

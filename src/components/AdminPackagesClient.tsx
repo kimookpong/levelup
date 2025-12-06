@@ -104,17 +104,32 @@ export default function AdminPackagesClient({ initialPackages, initialGames }: A
         resetForm();
     };
 
+    // Helper function to ensure session is valid
+    const ensureSession = async () => {
+        const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) console.error('Session refresh error:', refreshError);
+
+        if (!session) {
+            const { data: { session: currentSession } } = await supabase.auth.getSession();
+            if (!currentSession) throw new Error('กรุณาเข้าสู่ระบบใหม่');
+            return currentSession;
+        }
+        return session;
+    };
+
     const handleDelete = async (id: string) => {
         if (!confirm('คุณแน่ใจหรือไม่ที่จะลบแพ็กเกจนี้?')) return;
 
         try {
+            await ensureSession();
+
             const { error } = await supabase
                 .from('packages')
                 .delete()
                 .eq('id', id);
 
             if (error) throw error;
-            setPackages(packages.filter(p => p.id !== id));
+            await fetchPackages();
         } catch (error: any) {
             console.error('Error deleting package:', error);
             alert(`เกิดข้อผิดพลาดในการลบ: ${error.message}`);
@@ -126,6 +141,8 @@ export default function AdminPackagesClient({ initialPackages, initialGames }: A
         setLoading(true);
 
         try {
+            await ensureSession();
+
             const saveData = {
                 game_id: formData.game_id,
                 name: formData.name,
@@ -136,25 +153,21 @@ export default function AdminPackagesClient({ initialPackages, initialGames }: A
             };
 
             if (editingPackage) {
-                const { data, error } = await supabase
+                const { error } = await supabase
                     .from('packages')
                     .update(saveData)
-                    .eq('id', editingPackage.id)
-                    .select('*, games(id, name, image_url)')
-                    .single();
+                    .eq('id', editingPackage.id);
 
                 if (error) throw error;
-                setPackages(packages.map(p => p.id === editingPackage.id ? data : p));
             } else {
-                const { data, error } = await supabase
+                const { error } = await supabase
                     .from('packages')
-                    .insert([saveData])
-                    .select('*, games(id, name, image_url)')
-                    .single();
+                    .insert([saveData]);
 
                 if (error) throw error;
-                setPackages([data, ...packages]);
             }
+
+            await fetchPackages();
             handleCloseModal();
         } catch (error: any) {
             console.error('Error saving package:', error);

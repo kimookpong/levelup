@@ -68,13 +68,6 @@ export default function AdminSidebar({ isOpen = false, onClose }: AdminSidebarPr
                         </Link>
                     ))}
                 </nav>
-
-                <div className="absolute bottom-8 w-full px-4">
-                    <button className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-500/10 rounded-xl transition-colors group">
-                        <FaSignOutAlt className="group-hover:translate-x-1 transition-transform" />
-                        <span>ออกจากระบบ</span>
-                    </button>
-                </div>
             </aside>
         </>
     );

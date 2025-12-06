@@ -82,17 +82,32 @@ export default function AdminPromotionsClient({ initialPromotions }: AdminPromot
         resetForm();
     };
 
+    // Helper function to ensure session is valid
+    const ensureSession = async () => {
+        const { data: { session }, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) console.error('Session refresh error:', refreshError);
+
+        if (!session) {
+            const { data: { session: currentSession } } = await supabase.auth.getSession();
+            if (!currentSession) throw new Error('กรุณาเข้าสู่ระบบใหม่');
+            return currentSession;
+        }
+        return session;
+    };
+
     const handleDelete = async (id: string) => {
         if (!confirm('คุณแน่ใจหรือไม่ที่จะลบโปรโมชั่นนี้?')) return;
 
         try {
+            await ensureSession();
+
             const { error } = await supabase
                 .from('promotions')
                 .delete()
                 .eq('id', id);
 
             if (error) throw error;
-            setPromotions(promotions.filter(p => p.id !== id));
+            await fetchPromotions();
         } catch (error: any) {
             console.error('Error deleting promotion:', error);
             alert(`เกิดข้อผิดพลาดในการลบ: ${error.message}`);
@@ -104,6 +119,8 @@ export default function AdminPromotionsClient({ initialPromotions }: AdminPromot
         setLoading(true);
 
         try {
+            await ensureSession();
+
             const saveData = {
                 code: formData.code.toUpperCase(),
                 discount_type: formData.discount_type,
@@ -113,25 +130,21 @@ export default function AdminPromotionsClient({ initialPromotions }: AdminPromot
             };
 
             if (editingPromotion) {
-                const { data, error } = await supabase
+                const { error } = await supabase
                     .from('promotions')
                     .update(saveData)
-                    .eq('id', editingPromotion.id)
-                    .select()
-                    .single();
+                    .eq('id', editingPromotion.id);
 
                 if (error) throw error;
-                setPromotions(promotions.map(p => p.id === editingPromotion.id ? data : p));
             } else {
-                const { data, error } = await supabase
+                const { error } = await supabase
                     .from('promotions')
-                    .insert([saveData])
-                    .select()
-                    .single();
+                    .insert([saveData]);
 
                 if (error) throw error;
-                setPromotions([data, ...promotions]);
             }
+
+            await fetchPromotions();
             handleCloseModal();
         } catch (error: any) {
             console.error('Error saving promotion:', error);
