@@ -252,7 +252,7 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                             <div>
                                 <label className="block text-gray-400 text-sm font-bold mb-2">รูปภาพ URL</label>
                                 {(formData.image_url.startsWith('http') || formData.image_url.startsWith('/')) && (
-                                    <div className="mb-4 relative aspect-[2/3] rounded-xl overflow-hidden border border-white/10 bg-black/50">
+                                    <div className="mb-4 relative aspect-[2/3] h-[200px] rounded-xl overflow-hidden border border-white/10 bg-black/50">
                                         <Image
                                             src={formData.image_url}
                                             alt="Preview"
