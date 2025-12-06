@@ -42,7 +42,7 @@ export default function Navbar() {
                     <div className="flex items-center gap-12">
                         {/* Logo */}
                         <Link href="/" className="flex items-center group">
-                            <div className="relative w-16 h-16">
+                            <div className="relative gap-2 w-16 h-16">
 
                                 <Image
                                     src="/logo.png"
