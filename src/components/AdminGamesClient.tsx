@@ -204,7 +204,7 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                                         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${game.active ? 'translate-x-6' : 'translate-x-1'}`} />
                                     </button>
                                 </td>
-                                <td className="p-6 text-right space-x-2">
+                                <td className="p-6 text-right space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button
                                         onClick={() => handleOpenModal(game)}
                                         className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors"

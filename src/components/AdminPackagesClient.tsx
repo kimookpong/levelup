@@ -18,7 +18,7 @@ interface Package {
     currency: string;
     bonus_details: string | null;
     active: boolean;
-    games?: Game;
+    game?: Game;
 }
 
 interface AdminPackagesClientProps {
@@ -57,7 +57,7 @@ export default function AdminPackagesClient({ initialPackages, initialGames }: A
         setRefreshing(true);
         try {
             const { data, error } = await import('@/actions/packages').then(m => m.getPackages(filterGameId));
-
+            console.log(data);
             if (error) throw new Error(error);
             // @ts-ignore
             if (data) setPackages(data);
@@ -124,6 +124,21 @@ export default function AdminPackagesClient({ initialPackages, initialGames }: A
         } catch (error: any) {
             console.error('Error deleting package:', error);
             alert(`เกิดข้อผิดพลาดในการลบ: ${error.message}`);
+        }
+    };
+
+    const handleToggleStatus = async (pkg: Package) => {
+        try {
+            const { error } = await import('@/actions/packages').then(m => m.updatePackage(pkg.id, {
+                ...pkg,
+                active: !pkg.active
+            }));
+
+            if (error) throw new Error(error);
+            await fetchPackages();
+        } catch (error: any) {
+            console.error('Error toggling status:', error);
+            alert(`เกิดข้อผิดพลาดในการเปลี่ยนสถานะ: ${error.message}`);
         }
     };
 
@@ -216,21 +231,24 @@ export default function AdminPackagesClient({ initialPackages, initialGames }: A
                             <tr key={pkg.id} className="hover:bg-white/5 transition-colors group">
                                 <td className="p-6">
                                     <div className="flex items-center gap-3">
-                                        {pkg.games?.image_url && (
+                                        {pkg.game?.image_url && (
                                             <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-gray-800">
-                                                <Image src={pkg.games.image_url} alt={pkg.games.name} fill sizes="40px" className="object-cover" />
+                                                <Image src={pkg.game.image_url} alt={pkg.game.name} fill sizes="40px" className="object-cover" />
                                             </div>
                                         )}
-                                        <span className="font-bold text-white">{pkg.games?.name}</span>
+                                        <span className="font-bold text-white">{pkg.game?.name}</span>
                                     </div>
                                 </td>
                                 <td className="p-6 font-medium text-gray-200">{pkg.name}</td>
                                 <td className="p-6 font-mono text-primary font-bold">{pkg.price.toLocaleString()} {pkg.currency}</td>
                                 <td className="p-6 text-gray-400 text-sm">{pkg.bonus_details || '-'}</td>
                                 <td className="p-6">
-                                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${pkg.active ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>
-                                        {pkg.active ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
-                                    </span>
+                                    <button
+                                        onClick={() => handleToggleStatus(pkg)}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-black ${pkg.active ? 'bg-green-500' : 'bg-gray-700'}`}
+                                    >
+                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${pkg.active ? 'translate-x-6' : 'translate-x-1'}`} />
+                                    </button>
                                 </td>
                                 <td className="p-6 text-right space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button

@@ -124,3 +124,15 @@ export async function sendMessage(text: string, receiverId: string) {
         return { error: 'Failed to send message' };
     }
 }
+
+export async function getSupportUser() {
+    try {
+        const admin = await prisma.user.findFirst({
+            where: { role: 'admin' },
+            select: { id: true, name: true, image: true }
+        });
+        return { data: admin };
+    } catch (error) {
+        return { error: 'Failed to find support user' };
+    }
+}
