@@ -1,33 +1,29 @@
-import { FaUsers, FaGamepad, FaMoneyBillWave, FaChartLine } from 'react-icons/fa';
+import { getDashboardStats, getRevenueChartData, getOrderStatusData, getUserGrowthData } from '@/actions/dashboard';
+import AdminDashboardClient from './AdminDashboardClient';
 
-export default function AdminDashboard() {
-    // Mock Dashboard for now
+export default async function AdminDashboard() {
+    const statsRes = await getDashboardStats();
+    const revenueRes = await getRevenueChartData();
+    const statusRes = await getOrderStatusData();
+    const userGrowthRes = await getUserGrowthData();
+
+    if (statsRes.error || revenueRes.error || statusRes.error || userGrowthRes.error) {
+        return (
+            <div className="p-8 text-red-500">
+                Failed to load dashboard data.
+            </div>
+        );
+    }
+
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-[#1a1b26] border border-white/10 p-6 rounded-2xl flex items-center justify-between">
-                <div>
-                    <h3 className="text-gray-400 text-sm mb-1">ผู้ใช้งานทั้งหมด</h3>
-                    <div className="text-3xl font-bold text-white">0</div>
-                    <div className="text-green-500 text-xs mt-2 flex items-center gap-1">
-                        +0% <span className="text-gray-500">จากเดือนที่แล้ว</span>
-                    </div>
-                </div>
-                <div className="w-12 h-12 bg-primary/20 rounded-xl flex items-center justify-center text-primary text-xl">
-                    <FaUsers />
-                </div>
-            </div>
-            <div className="bg-[#1a1b26] border border-white/10 p-6 rounded-2xl flex items-center justify-between">
-                <div>
-                    <h3 className="text-gray-400 text-sm mb-1">ยอดขายรวม</h3>
-                    <div className="text-3xl font-bold text-white">฿0</div>
-                    <div className="text-green-500 text-xs mt-2 flex items-center gap-1">
-                        +0% <span className="text-gray-500">จากเดือนที่แล้ว</span>
-                    </div>
-                </div>
-                <div className="w-12 h-12 bg-green-500/20 rounded-xl flex items-center justify-center text-green-500 text-xl">
-                    <FaMoneyBillWave />
-                </div>
-            </div>
+        <div className="p-8">
+            <h1 className="text-2xl font-bold mb-6 text-white">ภาพรวมระบบ (System Overview)</h1>
+            <AdminDashboardClient
+                stats={statsRes.data!}
+                revenueData={revenueRes.data!}
+                statusData={statusRes.data!}
+                userGrowthData={userGrowthRes.data!}
+            />
         </div>
     );
 }

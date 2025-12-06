@@ -1,5 +1,5 @@
-import AdminPromotionsClient from '@/components/AdminPromotionsClient';
 import { getPromotions } from '@/actions/promotions';
+import AdminPromotionsClient from './AdminPromotionsClient';
 
 export default async function AdminPromotions() {
     const { data: promotions, error } = await getPromotions();
