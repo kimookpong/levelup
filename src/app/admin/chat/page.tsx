@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { FaPaperPlane, FaUser, FaSearch } from 'react-icons/fa';
 import Image from 'next/image';
@@ -40,7 +40,9 @@ export default function AdminChat() {
     }, []);
 
     // Fetch conversations using RPC
-    const fetchConversations = async () => {
+    const fetchConversations = useCallback(async () => {
+        if (!adminId) return;
+
         const { data, error } = await supabase.rpc('get_chat_users');
         if (error) {
             console.error('Error fetching conversations:', error);
@@ -53,28 +55,28 @@ export default function AdminChat() {
             );
             setConversations(filtered);
         }
-    };
+    }, [adminId]);
 
     useEffect(() => {
-        if (adminId) {
-            fetchConversations();
+        if (!adminId) return;
 
-            // Subscribe to ALL new messages to update the conversation list order
-            const globalChannel = supabase
-                .channel('global_chat_updates')
-                .on('postgres_changes',
-                    { event: 'INSERT', schema: 'public', table: 'chat_messages' },
-                    () => {
-                        fetchConversations();
-                    }
-                )
-                .subscribe();
+        fetchConversations();
 
-            return () => {
-                supabase.removeChannel(globalChannel);
-            };
-        }
-    }, [adminId]);
+        // Subscribe to ALL new messages to update the conversation list order
+        const globalChannel = supabase
+            .channel('global_chat_updates')
+            .on('postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+                () => {
+                    fetchConversations();
+                }
+            )
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(globalChannel);
+        };
+    }, [adminId, fetchConversations]);
 
     // Fetch messages for selected user
     useEffect(() => {
@@ -183,7 +185,7 @@ export default function AdminChat() {
                         >
                             <div className="relative w-10 h-10 rounded-full bg-gray-800 overflow-hidden flex-shrink-0">
                                 {user.avatar_url ? (
-                                    <Image src={user.avatar_url} alt={user.full_name} fill className="object-cover" />
+                                    <Image src={user.avatar_url} alt={user.full_name} fill sizes="40px" className="object-cover" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-400">
                                         <FaUser />
@@ -214,7 +216,7 @@ export default function AdminChat() {
                         <div className="p-4 border-b border-white/10 bg-white/5 flex items-center gap-3">
                             <div className="relative w-10 h-10 rounded-full bg-gray-800 overflow-hidden">
                                 {selectedUser.avatar_url ? (
-                                    <Image src={selectedUser.avatar_url} alt={selectedUser.full_name} fill className="object-cover" />
+                                    <Image src={selectedUser.avatar_url} alt={selectedUser.full_name} fill sizes="40px" className="object-cover" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-400">
                                         <FaUser />

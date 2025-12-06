@@ -39,7 +39,7 @@ export default async function AdminPackages() {
                                 <td className="p-6">
                                     <div className="flex items-center gap-3">
                                         <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-gray-800">
-                                            <Image src={pkg.games?.image_url} alt={pkg.games?.name} fill className="object-cover" />
+                                            <Image src={pkg.games?.image_url} alt={pkg.games?.name} fill sizes="40px" className="object-cover" />
                                         </div>
                                         <span className="font-bold text-white">{pkg.games?.name}</span>
                                     </div>
@@ -49,7 +49,7 @@ export default async function AdminPackages() {
                                 <td className="p-6">
                                     {pkg.image_url ? (
                                         <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-gray-800">
-                                            <Image src={pkg.image_url} alt={pkg.name} fill className="object-cover" />
+                                            <Image src={pkg.image_url} alt={pkg.name} fill sizes="48px" className="object-cover" />
                                         </div>
                                     ) : (
                                         <span className="text-gray-500 text-sm">-</span>

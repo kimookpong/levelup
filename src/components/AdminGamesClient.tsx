@@ -111,6 +111,9 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                     .single();
 
                 if (error) throw error;
+                if (!data) {
+                    throw new Error('ไม่สามารถบันทึกข้อมูลได้ (Permission Denied หรือไม่พบข้อมูล)');
+                }
 
                 setGames(games.map(g => g.id === editingGame.id ? data : g));
             } else {
@@ -122,13 +125,20 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                     .single();
 
                 if (error) throw error;
+                if (!data) {
+                    throw new Error('ไม่สามารถบันทึกข้อมูลได้ (Permission Denied)');
+                }
 
                 setGames([data, ...games]);
             }
             handleCloseModal();
         } catch (error: any) {
             console.error('Error saving game:', error);
-            alert(`เกิดข้อผิดพลาดในการบันทึกข้อมูล: ${error.message || error}`);
+            if (error.code === '23505') {
+                alert('ชื่อ Slug ซ้ำ! กรุณาใช้ชื่ออื่น');
+            } else {
+                alert(`เกิดข้อผิดพลาดในการบันทึกข้อมูล: ${error.message || error.details || error}`);
+            }
         } finally {
             setLoading(false);
         }
@@ -170,6 +180,7 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                                             src={game.image_url}
                                             alt={game.name}
                                             fill
+                                            sizes="48px"
                                             className="object-cover"
                                         />
                                     </div>
@@ -257,6 +268,7 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                                             src={formData.image_url}
                                             alt="Preview"
                                             fill
+                                            sizes="100px"
                                             className="object-cover"
                                         />
                                     </div>

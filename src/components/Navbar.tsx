@@ -116,6 +116,7 @@ export default function Navbar() {
                                             src={user.user_metadata.avatar_url}
                                             alt="User Avatar"
                                             fill
+                                            sizes="40px"
                                             className="object-cover"
                                         />
                                     ) : (
@@ -205,7 +206,7 @@ export default function Navbar() {
                                     <div className="flex items-center gap-3 px-3 py-2 text-gray-400">
                                         <div className="relative w-8 h-8 rounded-full bg-gray-800 overflow-hidden">
                                             {user.user_metadata?.avatar_url ? (
-                                                <Image src={user.user_metadata.avatar_url} alt="Avatar" fill className="object-cover" />
+                                                <Image src={user.user_metadata.avatar_url} alt="Avatar" fill sizes="32px" className="object-cover" />
                                             ) : (
                                                 <FaUser className="w-full h-full p-2" />
                                             )}

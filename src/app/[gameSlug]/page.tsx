@@ -7,7 +7,7 @@ import Footer from '@/components/Footer';
 import PackageCard from '@/components/PackageCard';
 import PaymentModal from '@/components/PaymentModal';
 import Image from 'next/image';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabase/client';
 
 export default function TopUpPage() {
     const params = useParams();

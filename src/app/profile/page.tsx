@@ -4,7 +4,7 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { FaHistory, FaGamepad, FaCoins, FaSignOutAlt } from 'react-icons/fa';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabase/client';
 import { User } from '@supabase/supabase-js';
 import Image from 'next/image';
 
@@ -52,6 +52,7 @@ export default function ProfilePage() {
                                 src={avatarUrl}
                                 alt={fullName}
                                 fill
+                                sizes="96px"
                                 className="rounded-full object-cover border-4 border-black"
                             />
                         ) : (

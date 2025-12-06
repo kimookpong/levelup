@@ -1,6 +1,6 @@
 'use client';
 
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabase/client';
 import { FaGoogle, FaFacebook, FaLine, FaGamepad, FaArrowLeft } from 'react-icons/fa';
 import Link from 'next/link';
 
