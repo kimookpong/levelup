@@ -2,16 +2,22 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import Image from 'next/image';
-import { FaPlus, FaEdit, FaTrash, FaTimes, FaCheck, FaImage, FaLink } from 'react-icons/fa';
+import { FaPlus, FaEdit, FaTrash, FaTimes, FaCheck, FaImage, FaLink, FaTicketAlt, FaClock } from 'react-icons/fa';
 import { getPromotions, createPromotion, updatePromotion, deletePromotion } from '@/actions/promotions';
 
-// Define the Promotion interface locally to avoid import issues if not generated yet
 interface Promotion {
     id: string;
     title: string;
-    image_url: string;
+    image_url: string | null;
     link?: string | null;
     active: boolean;
+    // Coupon Data
+    code?: string | null;
+    discount_type: string;
+    discount_value: number;
+    usage_limit?: number | null;
+    usage_count: number;
+    expires_at?: string | null; // Received as string from JSON serialization usually
     createdAt: Date;
     updatedAt: Date;
 }
@@ -24,7 +30,13 @@ export default function AdminPromotionsClient() {
         title: '',
         image_url: '',
         link: '',
-        active: true
+        active: true,
+        // Coupon Data
+        code: '',
+        discount_type: 'FIXED',
+        discount_value: 0,
+        usage_limit: '',
+        expires_at: ''
     });
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
@@ -34,7 +46,7 @@ export default function AdminPromotionsClient() {
         setRefreshing(true);
         try {
             const { data } = await getPromotions();
-            // @ts-ignore
+            console.log(data);
             if (data) setPromotions(data);
         } catch (error) {
             console.error("Error fetching promotions:", error);
@@ -51,22 +63,23 @@ export default function AdminPromotionsClient() {
         e.preventDefault();
         setLoading(true);
 
+        const payload = {
+            title: formData.title,
+            image_url: formData.image_url || undefined,
+            link: formData.link || undefined,
+            active: formData.active,
+            code: formData.code || undefined,
+            discount_type: formData.discount_type,
+            discount_value: Number(formData.discount_value),
+            usage_limit: formData.usage_limit ? Number(formData.usage_limit) : undefined,
+            expires_at: formData.expires_at ? new Date(formData.expires_at) : undefined
+        };
+
         try {
             if (editingPromotion) {
-                await updatePromotion(editingPromotion.id, {
-                    title: formData.title,
-                    image_url: formData.image_url,
-                    link: formData.link,
-                    active: formData.active
-                });
+                await updatePromotion(editingPromotion.id, payload);
             } else {
-                await createPromotion({
-                    title: formData.title,
-                    image_url: formData.image_url,
-                    // @ts-ignore
-                    link: formData.link || undefined,
-                    active: formData.active
-                });
+                await createPromotion(payload);
             }
             setIsModalOpen(false);
             resetForm();
@@ -92,18 +105,43 @@ export default function AdminPromotionsClient() {
     };
 
     const resetForm = () => {
-        setFormData({ title: '', image_url: '', link: '', active: true });
+        setFormData({
+            title: '',
+            image_url: '',
+            link: '',
+            active: true,
+            code: '',
+            discount_type: 'FIXED',
+            discount_value: 0,
+            usage_limit: '',
+            expires_at: ''
+        });
         setEditingPromotion(null);
         setImageError(false);
     };
 
     const openEditModal = (promotion: Promotion) => {
         setEditingPromotion(promotion);
+
+        // Format date for datetime-local input (YYYY-MM-DDTHH:mm)
+        let formattedDate = '';
+        if (promotion.expires_at) {
+            const date = new Date(promotion.expires_at);
+            const offset = date.getTimezoneOffset();
+            const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+            formattedDate = localDate.toISOString().slice(0, 16);
+        }
+
         setFormData({
             title: promotion.title,
-            image_url: promotion.image_url,
+            image_url: promotion.image_url || '',
             link: promotion.link || '',
-            active: promotion.active
+            active: promotion.active,
+            code: promotion.code || '',
+            discount_type: promotion.discount_type || 'FIXED',
+            discount_value: promotion.discount_value || 0,
+            usage_limit: promotion.usage_limit ? String(promotion.usage_limit) : '',
+            expires_at: formattedDate
         });
         setImageError(false);
         setIsModalOpen(true);
@@ -112,7 +150,7 @@ export default function AdminPromotionsClient() {
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-white">จัดการโปรโมชั่น</h2>
+                <h2 className="text-xl font-bold text-white">จัดการโปรโมชั่น & คูปอง</h2>
                 <button
                     onClick={() => { resetForm(); setIsModalOpen(true); }}
                     className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl transition-all shadow-lg shadow-emerald-500/20"
@@ -126,13 +164,20 @@ export default function AdminPromotionsClient() {
                 {promotions.map((promo) => (
                     <div key={promo.id} className="group bg-[#1a1b26] border border-white/10 rounded-2xl overflow-hidden hover:border-emerald-500/30 transition-all duration-300">
                         <div className="relative h-48 w-full overflow-hidden bg-black/20">
-                            <Image
-                                src={promo.image_url}
-                                alt={promo.title}
-                                fill
-                                className="object-cover group-hover:scale-105 transition-transform duration-500"
-                                onError={() => setImageError(true)}
-                            />
+                            {promo.image_url ? (
+                                <Image
+                                    src={promo.image_url}
+                                    alt={promo.title}
+                                    fill
+                                    className="object-cover group-hover:scale-105 transition-transform duration-500"
+                                    onError={() => setImageError(true)}
+                                />
+                            ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center text-gray-600 bg-gray-900/50">
+                                    <FaTicketAlt className="text-4xl mb-2" />
+                                    <span className="text-sm font-mono">{promo.code || 'No Code'}</span>
+                                </div>
+                            )}
                             <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg text-xs font-mono border border-white/10">
                                 {promo.active ? (
                                     <span className="text-emerald-400 flex items-center space-x-1">
@@ -151,6 +196,24 @@ export default function AdminPromotionsClient() {
                                 <h3 className="text-lg font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-1">
                                     {promo.title}
                                 </h3>
+
+                                {promo.code && (
+                                    <div className="flex items-center space-x-2 text-sm text-yellow-400 mt-2 bg-yellow-400/10 px-2 py-1 rounded border border-yellow-400/20 w-fit">
+                                        <FaTicketAlt className="w-3 h-3" />
+                                        <span className="font-mono font-bold">{promo.code}</span>
+                                        <span className="text-gray-400 text-xs ml-2">
+                                            (-{promo.discount_value}{promo.discount_type === 'PERCENT' ? '%' : ' THB'})
+                                        </span>
+                                    </div>
+                                )}
+
+                                {promo.expires_at && (
+                                    <div className="flex items-center space-x-2 text-xs text-gray-500 mt-2">
+                                        <FaClock className="w-3 h-3" />
+                                        <span> หมดอายุ: {new Date(promo.expires_at).toLocaleDateString('th-TH')}</span>
+                                    </div>
+                                )}
+
                                 {promo.link && (
                                     <div className="flex items-center space-x-2 text-sm text-gray-400 mt-1">
                                         <FaLink className="w-3 h-3" />
@@ -186,11 +249,11 @@ export default function AdminPromotionsClient() {
 
             {/* Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                    <div className="bg-[#1a1b26] rounded-2xl w-full max-w-lg border border-white/10 shadow-2xl">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+                    <div className="bg-[#1a1b26] rounded-2xl w-full max-w-lg border border-white/10 shadow-2xl my-8">
                         <div className="p-6 border-b border-white/10 flex justify-between items-center">
                             <h3 className="text-xl font-bold text-white">
-                                {editingPromotion ? 'แก้ไขโปรโมชั่น' : 'เพิ่มโปรโมชั่นใหม่'}
+                                {editingPromotion ? 'แก้ไขข้อมูล' : 'เพิ่มข้อมูลใหม่'}
                             </h3>
                             <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white transition-colors">
                                 <FaTimes size={20} />
@@ -198,57 +261,112 @@ export default function AdminPromotionsClient() {
                         </div>
 
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                            <div className="space-y-2">
-                                <label className="text-sm text-gray-400">ชื่อโปรโมชั่น</label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={formData.title}
-                                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                    className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-emerald-500 transition-colors"
-                                    placeholder="เช่น โปรโมชั่นเติมเงินครั้งแรก"
-                                />
-                            </div>
+                            {/* General Info */}
+                            <div className="space-y-4">
+                                <h4 className="text-sm font-bold text-emerald-400 uppercase tracking-wider">ข้อมูลพื้นฐาน</h4>
+                                <div className="space-y-2">
+                                    <label className="text-sm text-gray-400">ชื่อรายการ *</label>
+                                    <input
+                                        type="text"
+                                        required
+                                        value={formData.title}
+                                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                        className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                                        placeholder="เช่น โปรโมชั่นเดือนธันวาคม หรือ โค้ดส่วนลดปีใหม่"
+                                    />
+                                </div>
 
-                            <div className="space-y-2">
-                                <label className="text-sm text-gray-400">รูปภาพ URL</label>
-                                <div className="flex space-x-2">
-                                    <div className="flex-1">
-                                        <input
-                                            type="url"
-                                            required
-                                            value={formData.image_url}
-                                            onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                                            className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-emerald-500 transition-colors"
-                                            placeholder="https://..."
-                                        />
-                                    </div>
-                                    <div className="w-12 h-12 bg-black/40 rounded-xl border border-white/10 flex items-center justify-center overflow-hidden relative">
-                                        {formData.image_url && !imageError ? (
-                                            <Image
-                                                src={formData.image_url}
-                                                alt="Preview"
-                                                fill
-                                                className="object-cover"
-                                                onError={() => setImageError(true)}
-                                            />
-                                        ) : (
-                                            <FaImage className="text-gray-600" />
-                                        )}
-                                    </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm text-gray-400">รูปภาพ URL (Optional)</label>
+                                    <input
+                                        type="url"
+                                        value={formData.image_url}
+                                        onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                                        className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                                        placeholder="https://..."
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm text-gray-400">ลิงก์ URL (Optional)</label>
+                                    <input
+                                        type="text"
+                                        value={formData.link}
+                                        onChange={(e) => setFormData({ ...formData, link: e.target.value })}
+                                        className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-emerald-500 transition-colors"
+                                        placeholder="/games/rov"
+                                    />
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <label className="text-sm text-gray-400">ลิงก์ (Optional)</label>
-                                <input
-                                    type="text"
-                                    value={formData.link}
-                                    onChange={(e) => setFormData({ ...formData, link: e.target.value })}
-                                    className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-emerald-500 transition-colors"
-                                    placeholder="/games/rov"
-                                />
+                            <hr className="border-white/10" />
+
+                            {/* Coupon Info */}
+                            <div className="space-y-4">
+                                <h4 className="text-sm font-bold text-yellow-400 uppercase tracking-wider flex items-center gap-2">
+                                    <FaTicketAlt /> ข้อมูลคูปอง (Optional)
+                                </h4>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-gray-400">รหัสคูปอง (Code)</label>
+                                        <input
+                                            type="text"
+                                            value={formData.code}
+                                            onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                                            className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-yellow-500 transition-colors font-mono uppercase"
+                                            placeholder="SAVE10"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-gray-400">ประเภทส่วนลด</label>
+                                        <select
+                                            value={formData.discount_type}
+                                            onChange={(e) => setFormData({ ...formData, discount_type: e.target.value })}
+                                            className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-yellow-500 transition-colors"
+                                        >
+                                            <option value="FIXED">ลดเป็นบาท (THB)</option>
+                                            <option value="PERCENT">ลดเป็นเปอร์เซ็นต์ (%)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-gray-400">มูลค่าส่วนลด</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={formData.discount_value}
+                                            onChange={(e) => setFormData({ ...formData, discount_value: Number(e.target.value) })}
+                                            className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-yellow-500 transition-colors"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm text-gray-400">จำกัดจำนวน (ครั้ง)</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={formData.usage_limit}
+                                            onChange={(e) => setFormData({ ...formData, usage_limit: e.target.value })}
+                                            className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-yellow-500 transition-colors"
+                                            placeholder="ไม่จำกัด"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm text-gray-400">วันหมดอายุ</label>
+                                    <input
+                                        type="datetime-local"
+                                        value={formData.expires_at}
+                                        onChange={(e) => setFormData({ ...formData, expires_at: e.target.value })}
+                                        className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-yellow-500 transition-colors"
+                                    />
+                                </div>
                             </div>
+
+                            <hr className="border-white/10" />
 
                             <div className="flex items-center space-x-3 pt-2">
                                 <button

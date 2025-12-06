@@ -104,13 +104,22 @@ model ChatMessage {
 }
 
 model Promotion {
-  id        String   @id @default(cuid())
-  title     String
-  image_url String
-  link      String?
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id             String    @id @default(cuid())
+  title          String
+  image_url      String?
+  link           String?
+  active         Boolean   @default(true)
+  
+  // Coupon Fields
+  code           String?   @unique
+  discount_type  String    @default("FIXED") // FIXED | PERCENT
+  discount_value Float     @default(0)
+  usage_limit    Int?
+  usage_count    Int       @default(0)
+  expires_at     DateTime?
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model News {
@@ -132,6 +141,8 @@ model Transaction {
   currency    String   @default("THB")
   status      String   @default("PENDING") // PENDING, COMPLETED, FAILED
   paymentId   String?  // Omise Charge ID
+  promotionCode String?
+  discount    Float    @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   

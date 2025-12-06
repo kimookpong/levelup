@@ -3,12 +3,14 @@
 import { useState, useEffect } from 'react';
 import Script from 'next/script';
 import { FaTimes, FaCreditCard, FaLock, FaShieldAlt } from 'react-icons/fa';
-import { createTransaction } from '@/actions/transactions';
+import { createTransaction, updateTransactionStatus } from '@/actions/transactions';
 
 interface PaymentModalProps {
     isOpen: boolean;
     onClose: () => void;
     pkg: any;
+    transactionId?: string;
+    amount?: number;
 }
 
 declare global {
@@ -17,7 +19,7 @@ declare global {
     }
 }
 
-export default function PaymentModal({ isOpen, onClose, pkg }: PaymentModalProps) {
+export default function PaymentModal({ isOpen, onClose, pkg, transactionId, amount }: PaymentModalProps) {
     const [loading, setLoading] = useState(false);
     const [omiseLoaded, setOmiseLoaded] = useState(false);
 
@@ -31,6 +33,8 @@ export default function PaymentModal({ isOpen, onClose, pkg }: PaymentModalProps
 
     if (!isOpen) return null;
 
+    const finalAmount = amount || (pkg ? pkg.price : 0);
+
     const handlePayment = () => {
         if (!omiseLoaded) {
             alert('ระบบชำระเงินยังไม่พร้อม กรุณารอสักครู่');
@@ -38,29 +42,40 @@ export default function PaymentModal({ isOpen, onClose, pkg }: PaymentModalProps
         }
 
         window.OmiseCard.open({
-            amount: pkg.price * 100, // Amount in Satang
-            currency: pkg.currency || 'THB',
+            amount: finalAmount * 100, // Amount in Satang
+            currency: pkg?.currency || 'THB',
             defaultPaymentMethod: 'credit_card',
             onCreateTokenSuccess: async (nonce: string) => {
                 setLoading(true);
                 try {
-                    // Here we send the token (nonce) to our server to charge/create transaction
-                    // For this MVP, we just create the transaction record
-                    // In real app, we would verify payment with Omise API on server side
+                    // If we have an existing transaction, we update it.
+                    // Otherwise we create one (Legacy behavior / Fallback).
 
-                    const res = await createTransaction({
-                        gameId: pkg.game_id,
-                        packageId: pkg.id,
-                        price: pkg.price,
-                        paymentId: 'tok_' + nonce // Store token as payment ref
-                    });
-
-                    if (res.data) {
-                        alert('ชำระเงินสำเร็จ! (Demo Mode)');
-                        onClose();
+                    if (transactionId) {
+                        const res = await updateTransactionStatus(transactionId, 'COMPLETED', 'tok_' + nonce);
+                        if (res.data) {
+                            alert('ชำระเงินสำเร็จ!');
+                            onClose();
+                        } else {
+                            alert('เกิดข้อผิดพลาดในการอัปเดตสถานะ: ' + res.error);
+                        }
                     } else {
-                        alert('เกิดข้อผิดพลาดในการบันทึกรายการ: ' + res.error);
+                        const res = await createTransaction({
+                            gameId: pkg.game_id,
+                            packageId: pkg.id,
+                            price: pkg.price,
+                            playerId: 'UNKNOWN', // Fallback
+                            paymentId: 'tok_' + nonce
+                        });
+
+                        if (res.data) {
+                            alert('ชำระเงินสำเร็จ! (Demo Mode)');
+                            onClose();
+                        } else {
+                            alert('เกิดข้อผิดพลาดในการบันทึกรายการ: ' + res.error);
+                        }
                     }
+
                 } catch (err) {
                     console.error(err);
                     alert('เกิดข้อผิดพลาด');
@@ -105,7 +120,7 @@ export default function PaymentModal({ isOpen, onClose, pkg }: PaymentModalProps
                         </div>
                         <div className="text-right">
                             <p className="text-sm text-gray-400">ราคา</p>
-                            <p className="text-emerald-400 font-bold text-xl">{pkg?.price.toLocaleString()} THB</p>
+                            <p className="text-emerald-400 font-bold text-xl">{finalAmount.toLocaleString()} THB</p>
                         </div>
                     </div>
 

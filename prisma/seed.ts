@@ -67,7 +67,38 @@ async function main() {
         }
     });
 
-    console.log({ rov, valo, freefire });
+    // 2. Create Initial Promotions & Coupons
+    const promo1 = await prisma.promotion.create({
+        data: {
+            title: 'Welcome Bonus',
+            image_url: 'https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?w=800&auto=format&fit=crop&q=60',
+            active: true
+        }
+    });
+
+    const coupon1 = await prisma.promotion.create({
+        data: {
+            title: 'Save 50 THB',
+            active: true,
+            code: 'SAVE50',
+            discount_type: 'FIXED',
+            discount_value: 50,
+            usage_limit: 100,
+            expires_at: new Date(new Date().setMonth(new Date().getMonth() + 1)) // Expires in 1 month
+        }
+    });
+
+    const coupon2 = await prisma.promotion.create({
+        data: {
+            title: '10% Off',
+            active: true,
+            code: 'DISCOUNT10',
+            discount_type: 'PERCENT',
+            discount_value: 10,
+            usage_limit: 50
+        }
+    });
+
     console.log('Seeding finished.');
 }
 
