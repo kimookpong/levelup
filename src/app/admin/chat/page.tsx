@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase/client';
 import { FaPaperPlane, FaUser, FaSearch } from 'react-icons/fa';
+import Image from 'next/image';
 
 interface ChatMessage {
     id: string;
@@ -180,9 +181,9 @@ export default function AdminChat() {
                             onClick={() => setSelectedUser(user)}
                             className={`w-full p-4 flex items-center gap-3 hover:bg-white/5 transition-colors border-b border-white/5 ${selectedUser?.id === user.id ? 'bg-primary/10 border-primary/20' : ''}`}
                         >
-                            <div className="w-10 h-10 rounded-full bg-gray-800 overflow-hidden flex-shrink-0">
+                            <div className="relative w-10 h-10 rounded-full bg-gray-800 overflow-hidden flex-shrink-0">
                                 {user.avatar_url ? (
-                                    <img src={user.avatar_url} alt={user.full_name} className="w-full h-full object-cover" />
+                                    <Image src={user.avatar_url} alt={user.full_name} fill className="object-cover" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-400">
                                         <FaUser />
@@ -211,9 +212,9 @@ export default function AdminChat() {
                     <>
                         {/* Header */}
                         <div className="p-4 border-b border-white/10 bg-white/5 flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-gray-800 overflow-hidden">
+                            <div className="relative w-10 h-10 rounded-full bg-gray-800 overflow-hidden">
                                 {selectedUser.avatar_url ? (
-                                    <img src={selectedUser.avatar_url} alt={selectedUser.full_name} className="w-full h-full object-cover" />
+                                    <Image src={selectedUser.avatar_url} alt={selectedUser.full_name} fill className="object-cover" />
                                 ) : (
                                     <div className="w-full h-full flex items-center justify-center text-gray-400">
                                         <FaUser />

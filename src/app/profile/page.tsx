@@ -6,6 +6,7 @@ import { FaHistory, FaGamepad, FaCoins, FaSignOutAlt } from 'react-icons/fa';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { User } from '@supabase/supabase-js';
+import Image from 'next/image';
 
 // Mock Data
 const HISTORY = [
@@ -45,12 +46,13 @@ export default function ProfilePage() {
 
             <main className="pt-24 pb-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex items-center gap-6 mb-12">
-                    <div className="w-24 h-24 rounded-full bg-gradient-to-r from-primary to-secondary p-1">
+                    <div className="relative w-24 h-24 rounded-full bg-gradient-to-r from-primary to-secondary p-1">
                         {avatarUrl ? (
-                            <img
+                            <Image
                                 src={avatarUrl}
                                 alt={fullName}
-                                className="w-full h-full rounded-full object-cover border-4 border-black"
+                                fill
+                                className="rounded-full object-cover border-4 border-black"
                             />
                         ) : (
                             <div className="w-full h-full rounded-full bg-black flex items-center justify-center text-4xl font-bold">

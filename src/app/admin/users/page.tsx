@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { FaUserShield, FaUser } from 'react-icons/fa';
+import Image from 'next/image';
 
 export default async function AdminUsers() {
     const supabase = await createServerClient();
@@ -28,9 +29,9 @@ export default async function AdminUsers() {
                             <tr key={user.id} className="hover:bg-white/5 transition-colors">
                                 <td className="p-6">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-gray-800 overflow-hidden flex items-center justify-center border border-white/10">
+                                        <div className="relative w-10 h-10 rounded-full bg-gray-800 overflow-hidden flex items-center justify-center border border-white/10">
                                             {user.avatar_url ? (
-                                                <img src={user.avatar_url} alt={user.full_name} className="w-full h-full object-cover" />
+                                                <Image src={user.avatar_url} alt={user.full_name} fill className="object-cover" />
                                             ) : (
                                                 <FaUser className="text-gray-400" />
                                             )}

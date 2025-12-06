@@ -109,13 +109,14 @@ export default function Navbar() {
                             <div className="relative pl-2">
                                 <button
                                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                                    className="w-10 h-10 rounded-full bg-[#1a1b26] border border-white/10 flex items-center justify-center hover:border-primary/50 transition-all group overflow-hidden focus:outline-none"
+                                    className="relative w-10 h-10 rounded-full bg-[#1a1b26] border border-white/10 flex items-center justify-center hover:border-primary/50 transition-all group overflow-hidden focus:outline-none"
                                 >
                                     {user.user_metadata?.avatar_url ? (
-                                        <img
+                                        <Image
                                             src={user.user_metadata.avatar_url}
                                             alt="User Avatar"
-                                            className="w-full h-full object-cover"
+                                            fill
+                                            className="object-cover"
                                         />
                                     ) : (
                                         <FaUser className="text-gray-400 group-hover:text-white transition-colors" />
@@ -202,9 +203,9 @@ export default function Navbar() {
                             {user ? (
                                 <div className="space-y-2">
                                     <div className="flex items-center gap-3 px-3 py-2 text-gray-400">
-                                        <div className="w-8 h-8 rounded-full bg-gray-800 overflow-hidden">
+                                        <div className="relative w-8 h-8 rounded-full bg-gray-800 overflow-hidden">
                                             {user.user_metadata?.avatar_url ? (
-                                                <img src={user.user_metadata.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+                                                <Image src={user.user_metadata.avatar_url} alt="Avatar" fill className="object-cover" />
                                             ) : (
                                                 <FaUser className="w-full h-full p-2" />
                                             )}

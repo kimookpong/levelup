@@ -1,5 +1,6 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { FaPlus, FaEdit, FaTrash } from 'react-icons/fa';
+import Image from 'next/image';
 
 export default async function AdminPackages() {
     const supabase = await createServerClient();
@@ -37,8 +38,8 @@ export default async function AdminPackages() {
                             <tr key={pkg.id} className="hover:bg-white/5 transition-colors group">
                                 <td className="p-6">
                                     <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-800">
-                                            <img src={pkg.games?.image_url} alt={pkg.games?.name} className="w-full h-full object-cover" />
+                                        <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-gray-800">
+                                            <Image src={pkg.games?.image_url} alt={pkg.games?.name} fill className="object-cover" />
                                         </div>
                                         <span className="font-bold text-white">{pkg.games?.name}</span>
                                     </div>
@@ -47,8 +48,8 @@ export default async function AdminPackages() {
                                 <td className="p-6 font-mono text-primary font-bold">{pkg.price.toLocaleString()} THB</td>
                                 <td className="p-6">
                                     {pkg.image_url ? (
-                                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-800">
-                                            <img src={pkg.image_url} alt={pkg.name} className="w-full h-full object-cover" />
+                                        <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-gray-800">
+                                            <Image src={pkg.image_url} alt={pkg.name} fill className="object-cover" />
                                         </div>
                                     ) : (
                                         <span className="text-gray-500 text-sm">-</span>

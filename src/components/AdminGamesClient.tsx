@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabase/client';
 import { FaPlus, FaEdit, FaTrash, FaTimes, FaCheck } from 'react-icons/fa';
 
@@ -55,12 +56,16 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
 
     const handleToggleStatus = async (id: string, currentStatus: boolean) => {
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('games')
                 .update({ active: !currentStatus })
-                .eq('id', id);
+                .eq('id', id)
+                .select();
 
             if (error) throw error;
+            if (!data || data.length === 0) {
+                throw new Error('ไม่สามารถบันทึกข้อมูลได้ (Permission Denied หรือไม่พบข้อมูล)');
+            }
 
             setGames(games.map(g => g.id === id ? { ...g, active: !currentStatus } : g));
         } catch (error: any) {
@@ -73,12 +78,16 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
         if (!confirm('คุณแน่ใจหรือไม่ที่จะลบเกมนี้?')) return;
 
         try {
-            const { error } = await supabase
+            const { data, error } = await supabase
                 .from('games')
                 .delete()
-                .eq('id', id);
+                .eq('id', id)
+                .select();
 
             if (error) throw error;
+            if (!data || data.length === 0) {
+                throw new Error('ไม่สามารถลบข้อมูลได้ (Permission Denied หรือไม่พบข้อมูล)');
+            }
 
             setGames(games.filter(g => g.id !== id));
         } catch (error: any) {
@@ -156,8 +165,13 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                         {games.map((game) => (
                             <tr key={game.id} className="hover:bg-white/5 transition-colors group">
                                 <td className="p-6">
-                                    <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-800">
-                                        <img src={game.image_url} alt={game.name} className="w-full h-full object-cover" />
+                                    <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-gray-800">
+                                        <Image
+                                            src={game.image_url}
+                                            alt={game.name}
+                                            fill
+                                            className="object-cover"
+                                        />
                                     </div>
                                 </td>
                                 <td className="p-6 font-medium text-lg">{game.name}</td>
@@ -237,6 +251,16 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                             </div>
                             <div>
                                 <label className="block text-gray-400 text-sm font-bold mb-2">รูปภาพ URL</label>
+                                {(formData.image_url.startsWith('http') || formData.image_url.startsWith('/')) && (
+                                    <div className="mb-4 relative aspect-[2/3] rounded-xl overflow-hidden border border-white/10 bg-black/50">
+                                        <Image
+                                            src={formData.image_url}
+                                            alt="Preview"
+                                            fill
+                                            className="object-cover"
+                                        />
+                                    </div>
+                                )}
                                 <input
                                     type="text"
                                     value={formData.image_url}
@@ -244,6 +268,7 @@ export default function AdminGamesClient({ initialGames }: AdminGamesClientProps
                                     className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary"
                                     required
                                 />
+
                             </div>
 
                             <div className="pt-4 flex gap-3">
