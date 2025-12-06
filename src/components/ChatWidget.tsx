@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { FaComments, FaPaperPlane, FaTimes } from 'react-icons/fa';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { FaComments, FaPaperPlane, FaTimes, FaSync } from 'react-icons/fa';
 import { supabase } from '@/lib/supabase/client';
 import Link from 'next/link';
 
@@ -12,6 +12,8 @@ interface ChatMessage {
     created_at: string;
 }
 
+const POLLING_INTERVAL = 5000; // 5 seconds
+
 export default function ChatWidget() {
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -19,6 +21,7 @@ export default function ChatWidget() {
     const [user, setUser] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [lastMessageCount, setLastMessageCount] = useState(0);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     const scrollToBottom = () => {
@@ -49,67 +52,62 @@ export default function ChatWidget() {
         }
     }, [isOpen]);
 
+    // Fetch messages function
+    const fetchMessages = useCallback(async () => {
+        if (!user) return;
+
+        const { data } = await supabase
+            .from('chat_messages')
+            .select('*')
+            .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+            .order('created_at', { ascending: true });
+
+        if (data && data.length > 0) {
+            const newMessages = data.map((msg: any) => ({
+                id: msg.id,
+                text: msg.message,
+                sender: msg.sender_id === user.id ? 'user' : 'admin',
+                created_at: msg.created_at
+            }));
+
+            // Check for new messages from admin (for unread count)
+            if (!isOpen && data.length > lastMessageCount) {
+                const newAdminMessages = data.slice(lastMessageCount).filter(
+                    (msg: any) => msg.sender_id !== user.id
+                );
+                if (newAdminMessages.length > 0) {
+                    setUnreadCount(prev => prev + newAdminMessages.length);
+                }
+            }
+
+            setMessages(newMessages as ChatMessage[]);
+            setLastMessageCount(data.length);
+        } else if (!data || data.length === 0) {
+            // Add welcome message if no messages
+            setMessages([{
+                id: 'welcome',
+                text: 'สวัสดีครับ มีอะไรให้เราช่วยไหมครับ?',
+                sender: 'admin',
+                created_at: new Date().toISOString()
+            }]);
+        }
+    }, [user, isOpen, lastMessageCount]);
+
+    // Initial fetch and polling
     useEffect(() => {
         if (!user) return;
 
-        // Load initial messages
-        const fetchMessages = async () => {
-            const { data } = await supabase
-                .from('chat_messages')
-                .select('*')
-                .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
-                .order('created_at', { ascending: true });
-
-            if (data) {
-                setMessages(data.map((msg: any) => ({
-                    id: msg.id,
-                    text: msg.message,
-                    sender: msg.sender_id === user.id ? 'user' : 'admin',
-                    created_at: msg.created_at
-                })));
-            } else {
-                // Add welcome message if no messages
-                setMessages([{
-                    id: 'welcome',
-                    text: 'สวัสดีครับ มีอะไรให้เราช่วยไหมครับ?',
-                    sender: 'admin',
-                    created_at: new Date().toISOString()
-                }]);
-            }
-        };
-
         fetchMessages();
 
-        // Subscribe to new messages
-        const channel = supabase
-            .channel('public:chat_messages')
-            .on('postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'chat_messages',
-                    filter: `receiver_id=eq.${user.id}`
-                },
-                (payload: any) => {
-                    const newMessage = payload.new;
-                    setMessages(prev => [...prev, {
-                        id: newMessage.id,
-                        text: newMessage.message,
-                        sender: 'admin',
-                        created_at: newMessage.created_at
-                    }]);
-
-                    if (!isOpen) {
-                        setUnreadCount(prev => prev + 1);
-                    }
-                }
-            )
-            .subscribe();
+        // Polling for new messages
+        const intervalId = setInterval(() => {
+            fetchMessages();
+        }, POLLING_INTERVAL);
 
         return () => {
-            supabase.removeChannel(channel);
+            clearInterval(intervalId);
         };
-    }, [user, isOpen]); // Added isOpen to dependency to capture current state in closure
+    }, [user, fetchMessages]);
 
     useEffect(() => {
         scrollToBottom();
@@ -143,7 +141,15 @@ export default function ChatWidget() {
             // Remove the optimistic message if failed
             setMessages(prev => prev.filter(msg => msg.id !== tempId));
             alert('ส่งข้อความไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+        } else {
+            // Refresh messages after successful send
+            fetchMessages();
         }
+    };
+
+    // Manual refresh
+    const handleRefresh = () => {
+        fetchMessages();
     };
 
     return (
@@ -169,9 +175,20 @@ export default function ChatWidget() {
                         <h3 className="text-white font-bold flex items-center gap-2">
                             <FaComments /> Support Chat
                         </h3>
-                        <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white">
-                            <FaTimes />
-                        </button>
+                        <div className="flex items-center gap-2">
+                            {user && (
+                                <button
+                                    onClick={handleRefresh}
+                                    className="text-white/80 hover:text-white p-1"
+                                    title="รีเฟรช"
+                                >
+                                    <FaSync className="text-sm" />
+                                </button>
+                            )}
+                            <button onClick={() => setIsOpen(false)} className="text-white/80 hover:text-white">
+                                <FaTimes />
+                            </button>
+                        </div>
                     </div>
 
                     {/* Messages */}

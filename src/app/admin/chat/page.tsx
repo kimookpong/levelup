@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase/client';
-import { FaPaperPlane, FaUser, FaSearch } from 'react-icons/fa';
+import { FaPaperPlane, FaUser, FaSearch, FaSync } from 'react-icons/fa';
 import Image from 'next/image';
 
 interface ChatMessage {
@@ -22,12 +22,15 @@ interface UserProfile {
     last_message_at?: string;
 }
 
+const POLLING_INTERVAL = 5000; // 5 seconds
+
 export default function AdminChat() {
     const [conversations, setConversations] = useState<UserProfile[]>([]);
     const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
     const [adminId, setAdminId] = useState<string | null>(null);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // Get Admin ID
@@ -57,83 +60,70 @@ export default function AdminChat() {
         }
     }, [adminId]);
 
+    // Fetch messages for selected user
+    const fetchMessages = useCallback(async () => {
+        if (!selectedUser || !adminId) return;
+
+        const { data } = await supabase
+            .from('chat_messages')
+            .select('*')
+            .or(`sender_id.eq.${selectedUser.id},receiver_id.eq.${selectedUser.id}`)
+            .order('created_at', { ascending: true });
+
+        if (data) {
+            setMessages(data.map((msg: any) => ({
+                id: msg.id,
+                text: msg.message,
+                sender_id: msg.sender_id,
+                receiver_id: msg.receiver_id,
+                created_at: msg.created_at,
+                sender_role: msg.sender_id === adminId ? 'admin' : 'user'
+            })));
+        }
+    }, [selectedUser, adminId]);
+
+    // Initial fetch and polling for conversations
     useEffect(() => {
         if (!adminId) return;
 
         fetchConversations();
 
-        // Subscribe to ALL new messages to update the conversation list order
-        const globalChannel = supabase
-            .channel('global_chat_updates')
-            .on('postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'chat_messages' },
-                () => {
-                    fetchConversations();
-                }
-            )
-            .subscribe();
+        // Polling for new conversations
+        const intervalId = setInterval(() => {
+            fetchConversations();
+        }, POLLING_INTERVAL);
 
         return () => {
-            supabase.removeChannel(globalChannel);
+            clearInterval(intervalId);
         };
     }, [adminId, fetchConversations]);
 
-    // Fetch messages for selected user
+    // Fetch messages when selected user changes and polling
     useEffect(() => {
         if (!selectedUser || !adminId) return;
 
-        const fetchMessages = async () => {
-            const { data } = await supabase
-                .from('chat_messages')
-                .select('*')
-                .or(`sender_id.eq.${selectedUser.id},receiver_id.eq.${selectedUser.id}`)
-                .order('created_at', { ascending: true });
-
-            if (data) {
-                setMessages(data.map((msg: any) => ({
-                    id: msg.id,
-                    text: msg.message,
-                    sender_id: msg.sender_id,
-                    receiver_id: msg.receiver_id,
-                    created_at: msg.created_at,
-                    sender_role: msg.sender_id === adminId ? 'admin' : 'user'
-                })));
-            }
-        };
-
         fetchMessages();
 
-        const channel = supabase
-            .channel(`chat:${selectedUser.id}`)
-            .on('postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'chat_messages',
-                    filter: `sender_id=eq.${selectedUser.id}`
-                },
-                (payload: any) => {
-                    const newMessage = payload.new;
-                    setMessages(prev => [...prev, {
-                        id: newMessage.id,
-                        text: newMessage.message,
-                        sender_id: newMessage.sender_id,
-                        receiver_id: newMessage.receiver_id,
-                        created_at: newMessage.created_at,
-                        sender_role: 'user'
-                    }]);
-                }
-            )
-            .subscribe();
+        // Polling for new messages
+        const intervalId = setInterval(() => {
+            fetchMessages();
+        }, POLLING_INTERVAL);
 
         return () => {
-            supabase.removeChannel(channel);
+            clearInterval(intervalId);
         };
-    }, [selectedUser, adminId]);
+    }, [selectedUser, adminId, fetchMessages]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
+
+    // Manual refresh function
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        await Promise.all([fetchConversations(), fetchMessages()]);
+        setIsRefreshing(false);
+    };
 
     const handleSend = async () => {
         if (!input.trim() || !selectedUser || !adminId) return;
@@ -166,7 +156,17 @@ export default function AdminChat() {
             {/* Sidebar List */}
             <div className="w-80 glass rounded-3xl overflow-hidden flex flex-col border border-white/10">
                 <div className="p-4 border-b border-white/10">
-                    <h2 className="text-xl font-bold text-white mb-4">แชทลูกค้า</h2>
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-bold text-white">แชทลูกค้า</h2>
+                        <button
+                            onClick={handleRefresh}
+                            disabled={isRefreshing}
+                            className="p-2 text-gray-400 hover:text-white transition-colors disabled:opacity-50"
+                            title="รีเฟรช"
+                        >
+                            <FaSync className={isRefreshing ? 'animate-spin' : ''} />
+                        </button>
+                    </div>
                     <div className="relative">
                         <input
                             type="text"
