@@ -21,6 +21,8 @@ model User {
  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  transactions Transaction[]
 }
  
 model Account {
@@ -74,6 +76,7 @@ model Game {
   updatedAt DateTime  @updatedAt
   
   packages  Package[]
+  transactions Transaction[]
 }
 
 model Package {
@@ -88,6 +91,7 @@ model Package {
   updatedAt     DateTime  @updatedAt
 
   game          Game      @relation(fields: [game_id], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
 }
 
 model ChatMessage {
@@ -97,4 +101,42 @@ model ChatMessage {
   receiver_id String
   is_read     Boolean  @default(false)
   createdAt   DateTime @default(now())
+}
+
+model Promotion {
+  id        String   @id @default(cuid())
+  title     String
+  image_url String
+  link      String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model News {
+  id        String   @id @default(cuid())
+  title     String
+  image_url String
+  content   String   @db.Text
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String?
+  gameId      String
+  packageId   String
+  price       Float
+  currency    String   @default("THB")
+  status      String   @default("PENDING") // PENDING, COMPLETED, FAILED
+  paymentId   String?  // Omise Charge ID
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  user        User?    @relation(fields: [userId], references: [id])
+  game        Game     @relation(fields: [gameId], references: [id])
+  package     Package  @relation(fields: [packageId], references: [id])
 }

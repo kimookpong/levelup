@@ -2,108 +2,106 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import Image from 'next/image';
-import { FaPlus, FaEdit, FaTrash, FaTimes, FaCheck, FaImage, FaLink } from 'react-icons/fa';
-import { getPromotions, createPromotion, updatePromotion, deletePromotion } from '@/actions/promotions';
+import { FaPlus, FaEdit, FaTrash, FaTimes, FaCheck, FaImage } from 'react-icons/fa';
+import { getAllNews, createNews, updateNews, deleteNews } from '@/actions/news';
 
-// Define the Promotion interface locally to avoid import issues if not generated yet
-interface Promotion {
+interface NewsItem {
     id: string;
     title: string;
     image_url: string;
-    link?: string | null;
+    content: string;
     active: boolean;
     createdAt: Date;
     updatedAt: Date;
 }
 
-export default function AdminPromotionsClient() {
-    const [promotions, setPromotions] = useState<Promotion[]>([]);
+export default function AdminNewsClient() {
+    const [news, setNews] = useState<NewsItem[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingPromotion, setEditingPromotion] = useState<Promotion | null>(null);
+    const [editingNews, setEditingNews] = useState<NewsItem | null>(null);
     const [formData, setFormData] = useState({
         title: '',
         image_url: '',
-        link: '',
+        content: '',
         active: true
     });
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [imageError, setImageError] = useState(false);
 
-    const fetchPromotions = useCallback(async () => {
+    const fetchNews = useCallback(async () => {
         setRefreshing(true);
         try {
-            const { data } = await getPromotions();
+            const { data } = await getAllNews();
             // @ts-ignore
-            if (data) setPromotions(data);
+            if (data) setNews(data);
         } catch (error) {
-            console.error("Error fetching promotions:", error);
+            console.error("Error fetching news:", error);
         } finally {
             setRefreshing(false);
         }
     }, []);
 
     useEffect(() => {
-        fetchPromotions();
-    }, [fetchPromotions]);
+        fetchNews();
+    }, [fetchNews]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
 
         try {
-            if (editingPromotion) {
-                await updatePromotion(editingPromotion.id, {
+            if (editingNews) {
+                await updateNews(editingNews.id, {
                     title: formData.title,
                     image_url: formData.image_url,
-                    link: formData.link,
+                    content: formData.content,
                     active: formData.active
                 });
             } else {
-                await createPromotion({
+                await createNews({
                     title: formData.title,
                     image_url: formData.image_url,
-                    // @ts-ignore
-                    link: formData.link || undefined,
+                    content: formData.content,
                     active: formData.active
                 });
             }
             setIsModalOpen(false);
             resetForm();
-            fetchPromotions();
+            fetchNews();
         } catch (error) {
-            console.error('Error saving promotion:', error);
-            alert('Failed to save promotion');
+            console.error('Error saving news:', error);
+            alert('Failed to save news');
         } finally {
             setLoading(false);
         }
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Are you sure you want to delete this promotion?')) return;
+        if (!confirm('Are you sure you want to delete this news?')) return;
 
         try {
-            await deletePromotion(id);
-            fetchPromotions();
+            await deleteNews(id);
+            fetchNews();
         } catch (error) {
-            console.error('Error deleting promotion:', error);
-            alert('Failed to delete promotion');
+            console.error('Error deleting news:', error);
+            alert('Failed to delete news');
         }
     };
 
     const resetForm = () => {
-        setFormData({ title: '', image_url: '', link: '', active: true });
-        setEditingPromotion(null);
+        setFormData({ title: '', image_url: '', content: '', active: true });
+        setEditingNews(null);
         setImageError(false);
     };
 
-    const openEditModal = (promotion: Promotion) => {
-        setEditingPromotion(promotion);
+    const openEditModal = (item: NewsItem) => {
+        setEditingNews(item);
         setFormData({
-            title: promotion.title,
-            image_url: promotion.image_url,
-            link: promotion.link || '',
-            active: promotion.active
+            title: item.title,
+            image_url: item.image_url,
+            content: item.content,
+            active: item.active
         });
         setImageError(false);
         setIsModalOpen(true);
@@ -112,29 +110,29 @@ export default function AdminPromotionsClient() {
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-white">จัดการโปรโมชั่น</h2>
+                <h2 className="text-xl font-bold text-white">จัดการข่าวสาร</h2>
                 <button
                     onClick={() => { resetForm(); setIsModalOpen(true); }}
                     className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-xl transition-all shadow-lg shadow-emerald-500/20"
                 >
                     <FaPlus />
-                    <span>เพิ่มโปรโมชั่น</span>
+                    <span>เพิ่มข่าวสาร</span>
                 </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {promotions.map((promo) => (
-                    <div key={promo.id} className="group bg-[#1a1b26] border border-white/10 rounded-2xl overflow-hidden hover:border-emerald-500/30 transition-all duration-300">
+                {news.map((item) => (
+                    <div key={item.id} className="group bg-[#1a1b26] border border-white/10 rounded-2xl overflow-hidden hover:border-emerald-500/30 transition-all duration-300">
                         <div className="relative h-48 w-full overflow-hidden bg-black/20">
                             <Image
-                                src={promo.image_url}
-                                alt={promo.title}
+                                src={item.image_url}
+                                alt={item.title}
                                 fill
                                 className="object-cover group-hover:scale-105 transition-transform duration-500"
                                 onError={() => setImageError(true)}
                             />
                             <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg text-xs font-mono border border-white/10">
-                                {promo.active ? (
+                                {item.active ? (
                                     <span className="text-emerald-400 flex items-center space-x-1">
                                         <FaCheck className="w-3 h-3" /> <span>Active</span>
                                     </span>
@@ -149,25 +147,22 @@ export default function AdminPromotionsClient() {
                         <div className="p-4 space-y-4">
                             <div>
                                 <h3 className="text-lg font-bold text-white group-hover:text-emerald-400 transition-colors line-clamp-1">
-                                    {promo.title}
+                                    {item.title}
                                 </h3>
-                                {promo.link && (
-                                    <div className="flex items-center space-x-2 text-sm text-gray-400 mt-1">
-                                        <FaLink className="w-3 h-3" />
-                                        <span className="truncate">{promo.link}</span>
-                                    </div>
-                                )}
+                                <p className="text-sm text-gray-400 mt-1 line-clamp-2">
+                                    {item.content}
+                                </p>
                             </div>
 
                             <div className="flex items-center space-x-2 pt-2 border-t border-white/5">
                                 <button
-                                    onClick={() => openEditModal(promo)}
+                                    onClick={() => openEditModal(item)}
                                     className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-gray-300 rounded-lg transition-colors text-sm"
                                 >
                                     <FaEdit /> <span>แก้ไข</span>
                                 </button>
                                 <button
-                                    onClick={() => handleDelete(promo.id)}
+                                    onClick={() => handleDelete(item.id)}
                                     className="flex-1 flex items-center justify-center space-x-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors text-sm"
                                 >
                                     <FaTrash /> <span>ลบ</span>
@@ -177,9 +172,9 @@ export default function AdminPromotionsClient() {
                     </div>
                 ))}
 
-                {promotions.length === 0 && !refreshing && (
+                {news.length === 0 && !refreshing && (
                     <div className="col-span-full py-12 text-center text-gray-500 bg-[#1a1b26] border border-white/5 dashed rounded-2xl">
-                        ไม่พบข้อมูลโปรโมชั่น
+                        ไม่พบข้อมูลข่าวสาร
                     </div>
                 )}
             </div>
@@ -190,7 +185,7 @@ export default function AdminPromotionsClient() {
                     <div className="bg-[#1a1b26] rounded-2xl w-full max-w-lg border border-white/10 shadow-2xl">
                         <div className="p-6 border-b border-white/10 flex justify-between items-center">
                             <h3 className="text-xl font-bold text-white">
-                                {editingPromotion ? 'แก้ไขโปรโมชั่น' : 'เพิ่มโปรโมชั่นใหม่'}
+                                {editingNews ? 'แก้ไขข่าวสาร' : 'เพิ่มข่าวสารใหม่'}
                             </h3>
                             <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-white transition-colors">
                                 <FaTimes size={20} />
@@ -199,14 +194,14 @@ export default function AdminPromotionsClient() {
 
                         <form onSubmit={handleSubmit} className="p-6 space-y-4">
                             <div className="space-y-2">
-                                <label className="text-sm text-gray-400">ชื่อโปรโมชั่น</label>
+                                <label className="text-sm text-gray-400">หัวข้อข่าว</label>
                                 <input
                                     type="text"
                                     required
                                     value={formData.title}
                                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                                     className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-emerald-500 transition-colors"
-                                    placeholder="เช่น โปรโมชั่นเติมเงินครั้งแรก"
+                                    placeholder="เช่น ประกาศปิดปรับปรุงเซิร์ฟเวอร์"
                                 />
                             </div>
 
@@ -240,13 +235,13 @@ export default function AdminPromotionsClient() {
                             </div>
 
                             <div className="space-y-2">
-                                <label className="text-sm text-gray-400">ลิงก์ (Optional)</label>
-                                <input
-                                    type="text"
-                                    value={formData.link}
-                                    onChange={(e) => setFormData({ ...formData, link: e.target.value })}
-                                    className="w-full bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-emerald-500 transition-colors"
-                                    placeholder="/games/rov"
+                                <label className="text-sm text-gray-400">เนื้อหาข่าว</label>
+                                <textarea
+                                    required
+                                    value={formData.content}
+                                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                                    className="w-full h-32 bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-emerald-500 transition-colors resize-none"
+                                    placeholder="รายละเอียดข่าว..."
                                 />
                             </div>
 

@@ -26,10 +26,10 @@ interface AdminPackagesClientProps {
     initialGames?: Game[];
 }
 
-export default function AdminPackagesClient({ initialPackages = [], initialGames = [] }: AdminPackagesClientProps) {
-    const [packages, setPackages] = useState<Package[]>(initialPackages);
+export default function AdminPackagesClient({ initialPackages, initialGames }: AdminPackagesClientProps) {
+    const [packages, setPackages] = useState<Package[]>(initialPackages || []);
     // Remove initialGames from useState to manage it properly
-    const [games, setGames] = useState<Game[]>(initialGames);
+    const [games, setGames] = useState<Game[]>(initialGames || []);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingPackage, setEditingPackage] = useState<Package | null>(null);
     const [formData, setFormData] = useState({

@@ -16,8 +16,8 @@ interface AdminGamesClientProps {
     initialGames?: Game[];
 }
 
-export default function AdminGamesClient({ initialGames = [] }: AdminGamesClientProps) {
-    const [games, setGames] = useState<Game[]>(initialGames);
+export default function AdminGamesClient({ initialGames }: AdminGamesClientProps) {
+    const [games, setGames] = useState<Game[]>(initialGames || []);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingGame, setEditingGame] = useState<Game | null>(null);
     const [formData, setFormData] = useState({
